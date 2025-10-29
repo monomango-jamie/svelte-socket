@@ -27,7 +27,7 @@
 
 	let { children, url }: Props = $props();
 
-	const socket = new SvelteSocket(url);
+	const socket = new SvelteSocket({ url });
 	setSocket(socket);
 </script>
 

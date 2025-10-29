@@ -1,16 +1,24 @@
 # svelte-socket
 
-A reactive WebSocket wrapper for Svelte 5, built with runes for seamless state management and real-time connection handling.
+WebSocket wrapper for Svelte 5 using runes.
+
+## Overview
+
+This library provides:
+
+- **SvelteSocket** - WebSocket wrapper class with reactive state properties (`connectionStatus`, `sentMessages`, `receivedMessages`)
+- **SocketProvider** - Context provider component that instantiates `SvelteSocket` and makes it available to child components
+- **Debugger** - UI panel component showing connection status, sent messages, and received messages
+- **useSocket()** - Hook to access socket instance from context
 
 ## Features
 
-- 🔌 **Reactive WebSocket Wrapper** - Built with Svelte 5 runes for automatic reactivity
-- 📊 **Event Listener Tracking** - Track all registered event listeners with `SvelteSet`
-- 📨 **Reactive Message History** - Automatically track sent messages with timestamps in a reactive array
-- 🎯 **Context Provider Pattern** - Optional provider/consumer pattern for easy component integration
-- 🐛 **Debug Component** - Built-in debugger UI to visualize connections, listeners, and messages
-- ✅ **Fully Typed** - TypeScript support out of the box
-- 🧪 **Well Tested** - Comprehensive test suite included
+- Constructor accepts configuration object with URL and optional callbacks (`onMessage`, `onOpen`, `onClose`, `onError`)
+- Optional debug logging via `debug` flag
+- Auto-reconnection with configurable delay and max attempts
+- Reactive message history (sent and received)
+- All state properties use Svelte 5 `$state` runes
+- TypeScript support
 
 ## Installation
 
@@ -18,115 +26,106 @@ A reactive WebSocket wrapper for Svelte 5, built with runes for seamless state m
 npm install svelte-socket
 ```
 
-## Quick Start
-
-### Basic Usage
+## Usage
 
 ```svelte
 <script>
-  import { SvelteSocket } from 'svelte-socket';
-  
-  const socket = new SvelteSocket('ws://localhost:8080');
-  
-  // Add event listeners
-  socket.addEventListener('message', (event) => {
-    console.log('Received:', event.data);
-  });
-  
-  // Send messages
-  socket.sendMessage('Hello, Server!');
-  
-  // Check connection status
-  console.log(socket.isConnected); // reactive property
-  
-  // Access sent message history
-  console.log(socket.sentMessages); // reactive array
+	import { SvelteSocket } from 'svelte-socket';
+
+	const socket = new SvelteSocket({ url: 'ws://localhost:8080' });
+	const isConnected = $derived(socket.connectionStatus === WebSocket.OPEN);
+
+	socket.addEventListener('message', (event) => {
+		console.log(event.data);
+	});
+
+	socket.sendMessage('text');
 </script>
 
-{#if socket.isConnected}
-  <p>Connected! ✅</p>
-{:else}
-  <p>Disconnected ❌</p>
+{#if isConnected}
+	<p>Connected</p>
 {/if}
-
-<p>Sent {socket.sentMessages.length} messages</p>
 ```
 
-### Using the Provider Pattern
-
-```svelte
-<!-- App.svelte -->
-<script>
-  import { SocketProvider } from 'svelte-socket';
-</script>
-
-<SocketProvider url="ws://localhost:8080">
-  <YourComponent />
-</SocketProvider>
-
-<!-- YourComponent.svelte -->
-<script>
-  import { useSocket } from 'svelte-socket';
-  
-  const socket = useSocket();
-  
-  socket.addEventListener('message', (event) => {
-    console.log('Message:', event.data);
-  });
-</script>
-```
-
-## API Reference
+## API
 
 ### `SvelteSocket`
-
-The main WebSocket wrapper class with reactive state management.
 
 #### Constructor
 
 ```typescript
-new SvelteSocket(url: string)
+new SvelteSocket(options: SocketConstructorArgs)
 ```
 
-Creates a new WebSocket connection to the specified URL.
+**Options:**
 
-**Parameters:**
-- `url` - WebSocket server URL (e.g., `ws://localhost:8080`)
+| Property           | Type                            | Required | Description                               |
+| ------------------ | ------------------------------- | -------- | ----------------------------------------- |
+| `url`              | `string`                        | Yes      | WebSocket server URL                      |
+| `onMessage`        | `(event: MessageEvent) => void` | No       | Called when message received              |
+| `onOpen`           | `(event: Event) => void`        | No       | Called when connection opens              |
+| `onClose`          | `(event: CloseEvent) => void`   | No       | Called when connection closes             |
+| `onError`          | `(event: Event) => void`        | No       | Called on error                           |
+| `debug`            | `boolean`                       | No       | Enable console logging (default: `false`) |
+| `reconnectOptions` | `ReconnectOptions`              | No       | Auto-reconnection config                  |
+
+**ReconnectOptions:**
+
+| Property      | Type      | Description                           |
+| ------------- | --------- | ------------------------------------- |
+| `enabled`     | `boolean` | Enable auto-reconnection              |
+| `delay`       | `number`  | Milliseconds before reconnect attempt |
+| `maxAttempts` | `number`  | Maximum reconnection attempts         |
 
 **Example:**
+
 ```javascript
-const socket = new SvelteSocket('ws://localhost:8080');
+const socket = new SvelteSocket({
+	url: 'ws://localhost:8080',
+	debug: true,
+	reconnectOptions: {
+		enabled: true,
+		delay: 1000,
+		maxAttempts: 5
+	},
+	onMessage: (event) => console.log(event.data),
+	onOpen: () => console.log('connected'),
+	onClose: () => console.log('disconnected')
+});
 ```
 
 #### Properties
 
-##### `isConnected`
-
-```typescript
-isConnected: boolean (reactive)
-```
-
-Reactive boolean indicating whether the socket is currently connected.
+| Property           | Type                                          | Description                                                                 |
+| ------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
+| `connectionStatus` | `WebSocket['readyState']`                     | Connection state: `0` (CONNECTING), `1` (OPEN), `2` (CLOSING), `3` (CLOSED) |
+| `sentMessages`     | `Array<{message: string, timestamp: number}>` | Sent message history (newest first)                                         |
+| `receivedMessages` | `Array<{message: MessageEvent}>`              | Received message history (newest first)                                     |
 
 **Example:**
+
 ```svelte
-{#if socket.isConnected}
-  <span>Connected</span>
+<script>
+	const socket = new SvelteSocket({ url: 'ws://localhost:8080' });
+
+	const connectionStatus = $derived(socket.connectionStatus);
+	const sentMessages = $derived(socket.sentMessages);
+	const receivedMessages = $derived(socket.receivedMessages);
+</script>
+
+{#if connectionStatus === WebSocket.OPEN}
+	<p>Open</p>
+{:else if connectionStatus === WebSocket.CONNECTING}
+	<p>Connecting</p>
+{:else}
+	<p>Closed</p>
 {/if}
-```
 
-##### `sentMessages`
+<p>{sentMessages.length} sent</p>
+<p>{receivedMessages.length} received</p>
 
-```typescript
-sentMessages: Array<{ message: string; timestamp: number }> (reactive)
-```
-
-Reactive array containing the history of all sent messages with their timestamps.
-
-**Example:**
-```svelte
-{#each socket.sentMessages as { message, timestamp }}
-  <div>{new Date(timestamp).toLocaleTimeString()}: {message}</div>
+{#each receivedMessages as { message }}
+	<div>{message.data}</div>
 {/each}
 ```
 
@@ -135,38 +134,33 @@ Reactive array containing the history of all sent messages with their timestamps
 ##### `addEventListener(event, callback)`
 
 ```typescript
-addEventListener(event: string, callback: (event: any) => void): void
+addEventListener(
+	event: 'message' | 'close' | 'open' | 'error',
+	callback: (event: Event) => void
+): void
 ```
 
-Adds an event listener to the WebSocket. The listener is tracked internally for debugging.
+Adds event listener to WebSocket.
 
-**Parameters:**
-- `event` - Event type (`'message'`, `'close'`, `'open'`, `'error'`)
-- `callback` - Function to call when the event occurs
+Throws if socket not connected.
 
-**Throws:**
-- Error if socket is not connected
-
-**Example:**
 ```javascript
 socket.addEventListener('message', (event) => {
-  console.log('Received:', event.data);
+	console.log(event.data);
 });
 ```
 
 ##### `removeEventListener(event, callback)`
 
 ```typescript
-removeEventListener(event: string, callback: (event: any) => void): void
+removeEventListener(
+	event: 'message' | 'close' | 'open' | 'error',
+	callback: (event: Event) => void
+): void
 ```
 
-Removes a specific event listener from the WebSocket.
+Removes event listener.
 
-**Parameters:**
-- `event` - Event type
-- `callback` - The callback function to remove
-
-**Example:**
 ```javascript
 const handler = (event) => console.log(event.data);
 socket.addEventListener('message', handler);
@@ -179,43 +173,13 @@ socket.removeEventListener('message', handler);
 sendMessage(message: string): void
 ```
 
-Sends a message through the WebSocket and stores it in the message history.
+Sends message via WebSocket. Stores in `sentMessages` array.
 
-**Parameters:**
-- `message` - The message string to send
+Throws if socket not connected or not in OPEN state.
 
-**Throws:**
-- Error if socket is not connected
-- Error if socket is not in OPEN state
-
-**Example:**
 ```javascript
-socket.sendMessage('Hello, World!');
+socket.sendMessage('hello');
 socket.sendMessage(JSON.stringify({ type: 'ping' }));
-```
-
-##### `getEventListeners(event?)`
-
-```typescript
-getEventListeners(event?: string): Array | Map
-```
-
-Gets registered event listeners.
-
-**Parameters:**
-- `event` (optional) - Specific event type to filter by
-
-**Returns:**
-- If `event` provided: Array of listener functions for that event
-- If no `event`: Map of all event types to their listeners
-
-**Example:**
-```javascript
-// Get listeners for a specific event
-const messageListeners = socket.getEventListeners('message');
-
-// Get all listeners
-const allListeners = socket.getEventListeners();
 ```
 
 ##### `clearSentMessages()`
@@ -224,9 +188,8 @@ const allListeners = socket.getEventListeners();
 clearSentMessages(): void
 ```
 
-Clears the sent message history.
+Clears `sentMessages` array.
 
-**Example:**
 ```javascript
 socket.clearSentMessages();
 ```
@@ -237,9 +200,8 @@ socket.clearSentMessages();
 removeSocket(): void
 ```
 
-Closes the WebSocket connection and clears all tracked listeners and message history.
+Closes WebSocket connection. Clears message history. Prevents reconnection.
 
-**Example:**
 ```javascript
 socket.removeSocket();
 ```
@@ -248,22 +210,24 @@ socket.removeSocket();
 
 ### `SocketProvider`
 
-A Svelte component that provides a `SvelteSocket` instance to child components via context.
+Context provider component.
 
-#### Props
+**Props:**
 
-- `url` (string, required) - WebSocket server URL
-- `children` (Snippet, optional) - Child components
+| Property   | Type      | Required |
+| ---------- | --------- | -------- |
+| `url`      | `string`  | Yes      |
+| `children` | `Snippet` | No       |
 
-#### Usage
+**Example:**
 
 ```svelte
 <script>
-  import { SocketProvider } from 'svelte-socket';
+	import { SocketProvider } from 'svelte-socket';
 </script>
 
 <SocketProvider url="ws://localhost:8080">
-  <YourComponents />
+	<YourComponent />
 </SocketProvider>
 ```
 
@@ -271,22 +235,21 @@ A Svelte component that provides a `SvelteSocket` instance to child components v
 
 ### `useSocket()`
 
-A hook function to access the `SvelteSocket` instance from context.
+```typescript
+useSocket(): SvelteSocket
+```
 
-**Returns:** `SvelteSocket` instance
+Returns socket instance from context.
 
-**Throws:** Error if not used within a `SocketProvider`
+Throws if not used within `SocketProvider`.
 
 **Example:**
+
 ```svelte
 <script>
-  import { useSocket } from 'svelte-socket';
-  
-  const socket = useSocket();
-  
-  socket.addEventListener('message', (event) => {
-    console.log(event.data);
-  });
+	import { useSocket } from 'svelte-socket';
+
+	const socket = useSocket();
 </script>
 ```
 
@@ -294,38 +257,34 @@ A hook function to access the `SvelteSocket` instance from context.
 
 ### `Debugger`
 
-A visual debug component that displays connection status, event listeners, and sent messages.
+Debug UI component. Shows connection status, sent messages, received messages.
 
-#### Props
+**Props:**
 
-- `socket` (`SvelteSocket`, required) - The socket instance to debug
+| Property | Type           | Required |
+| -------- | -------------- | -------- |
+| `socket` | `SvelteSocket` | Yes      |
 
-#### Features
-
-- Real-time connection status with visual indicator
-- List of all registered event listeners by type
-- Scrollable history of sent messages with timestamps
-- Clear button for message history
-- Styled with Tailwind CSS
-
-#### Usage
+**Example:**
 
 ```svelte
 <script>
-  import { SvelteSocket, Debugger } from 'svelte-socket';
-  
-  const socket = new SvelteSocket('ws://localhost:8080');
+	import { SvelteSocket, Debugger } from 'svelte-socket';
+
+	const socket = new SvelteSocket({ url: 'ws://localhost:8080' });
 </script>
 
 <Debugger {socket} />
 ```
 
-The debugger will display:
-- Connection state (OPEN/CLOSED)
-- Total listener count
-- Number of messages sent
-- Detailed list of event listeners
-- Message history with timestamps (reactively updates as messages are sent)
+Displays:
+
+- Connection state (CONNECTING/OPEN/CLOSING/CLOSED)
+- Message counts (sent/received)
+- Sent message history with timestamps
+- Received message history with data
+
+Requires Tailwind CSS.
 
 ---
 
@@ -337,7 +296,7 @@ The debugger will display:
 setSocket(socket: SvelteSocket): void
 ```
 
-Manually sets a socket instance in Svelte context. Usually used by `SocketProvider`.
+Sets socket in Svelte context. Used by `SocketProvider`.
 
 #### `getSocketContext()`
 
@@ -345,176 +304,150 @@ Manually sets a socket instance in Svelte context. Usually used by `SocketProvid
 getSocketContext(): SvelteSocket
 ```
 
-Retrieves the socket instance from Svelte context.
-
-**Throws:** Error if no socket found in context
+Gets socket from context. Throws if not found.
 
 ## Examples
 
-### Echo Client
+### Basic
 
 ```svelte
 <script>
-  import { SvelteSocket } from 'svelte-socket';
-  
-  const socket = new SvelteSocket('ws://localhost:8080');
-  
-  let messages = $state([]);
-  let input = $state('');
-  
-  socket.addEventListener('message', (event) => {
-    messages.push({ text: event.data, from: 'server' });
-  });
-  
-  function send() {
-    if (input.trim()) {
-      socket.sendMessage(input);
-      messages.push({ text: input, from: 'client' });
-      input = '';
-    }
-  }
+	import { SvelteSocket } from 'svelte-socket';
+
+	const socket = new SvelteSocket({ url: 'ws://localhost:8080' });
+
+	socket.addEventListener('message', (event) => {
+		console.log(event.data);
+	});
+
+	function send() {
+		socket.sendMessage('test');
+	}
 </script>
 
-<div>
-  {#each messages as msg}
-    <p class:client={msg.from === 'client'}>
-      {msg.from}: {msg.text}
-    </p>
-  {/each}
-</div>
-
-<input bind:value={input} onkeydown={(e) => e.key === 'Enter' && send()} />
 <button onclick={send}>Send</button>
 ```
 
-### JSON Message Handler
+### Auto-reconnect
 
 ```svelte
 <script>
-  import { SvelteSocket } from 'svelte-socket';
-  
-  const socket = new SvelteSocket('ws://localhost:8080');
-  
-  socket.addEventListener('message', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      
-      switch (data.type) {
-        case 'ping':
-          socket.sendMessage(JSON.stringify({ type: 'pong' }));
-          break;
-        case 'update':
-          handleUpdate(data.payload);
-          break;
-      }
-    } catch (err) {
-      console.error('Invalid JSON:', err);
-    }
-  });
-  
-  function handleUpdate(payload) {
-    // Handle update
-  }
+	import { SvelteSocket } from 'svelte-socket';
+
+	const socket = new SvelteSocket({
+		url: 'ws://localhost:8080',
+		debug: true,
+		reconnectOptions: {
+			enabled: true,
+			delay: 1000,
+			maxAttempts: 5
+		}
+	});
 </script>
 ```
 
-### Reactive Message History
+### JSON Messages
 
 ```svelte
 <script>
-  import { SvelteSocket } from 'svelte-socket';
-  
-  const socket = new SvelteSocket('ws://localhost:8080');
-  
-  let input = $state('');
-  
-  function send() {
-    if (input.trim()) {
-      socket.sendMessage(input);
-      input = '';
-    }
-  }
-</script>
+	import { SvelteSocket } from 'svelte-socket';
 
-<div>
-  <h2>Sent Messages: {socket.sentMessages.length}</h2>
-  
-  {#each socket.sentMessages as { message, timestamp }}
-    <div>
-      <span>{new Date(timestamp).toLocaleTimeString()}</span>
-      <span>{message}</span>
-    </div>
-  {/each}
-  
-  <input bind:value={input} />
-  <button onclick={send}>Send</button>
-  <button onclick={() => socket.clearSentMessages()}>Clear History</button>
-</div>
+	const socket = new SvelteSocket({ url: 'ws://localhost:8080' });
+
+	socket.addEventListener('message', (event) => {
+		const data = JSON.parse(event.data);
+
+		if (data.type === 'ping') {
+			socket.sendMessage(JSON.stringify({ type: 'pong' }));
+		}
+	});
+</script>
 ```
 
-### Using with Debugger
+### Message History
 
 ```svelte
 <script>
-  import { SvelteSocket, Debugger } from 'svelte-socket';
-  
-  const socket = new SvelteSocket('ws://localhost:8080');
-  
-  socket.addEventListener('message', (event) => {
-    console.log('Message:', event.data);
-  });
-  
-  socket.addEventListener('error', (error) => {
-    console.error('Error:', error);
-  });
-  
-  function sendPing() {
-    socket.sendMessage(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
-  }
+	import { SvelteSocket } from 'svelte-socket';
+
+	const socket = new SvelteSocket({ url: 'ws://localhost:8080' });
+	const sentMessages = $derived(socket.sentMessages);
+	const receivedMessages = $derived(socket.receivedMessages);
+
+	let input = $state('');
+
+	function send() {
+		if (input) {
+			socket.sendMessage(input);
+			input = '';
+		}
+	}
 </script>
 
-<div>
-  <button onclick={sendPing}>Send Ping</button>
-  
-  <Debugger {socket} />
-</div>
+<input bind:value={input} />
+<button onclick={send}>Send</button>
+
+<h3>Sent ({sentMessages.length})</h3>
+{#each sentMessages as { message, timestamp }}
+	<div>
+		{new Date(timestamp).toLocaleTimeString()}: {message}
+	</div>
+{/each}
+
+<h3>Received ({receivedMessages.length})</h3>
+{#each receivedMessages as { message }}
+	<div>{message.data}</div>
+{/each}
+
+<button onclick={() => socket.clearSentMessages()}>Clear</button>
 ```
 
-## Development
+### With Provider
 
-### Install dependencies
+```svelte
+<!-- App.svelte -->
+<script>
+	import { SocketProvider } from 'svelte-socket';
+	import ChatComponent from './ChatComponent.svelte';
+</script>
 
-```bash
-npm install
+<SocketProvider url="ws://localhost:8080">
+	<ChatComponent />
+</SocketProvider>
+
+<!-- ChatComponent.svelte -->
+<script>
+	import { useSocket } from 'svelte-socket';
+
+	const socket = useSocket();
+
+	socket.addEventListener('message', (event) => {
+		console.log(event.data);
+	});
+</script>
 ```
 
-### Start development server
+## TouchDesigner Integration
 
-```bash
-npm run dev
-```
+Broadcast to all connected clients:
 
-### Run tests
+```python
+# TouchDesigner Text DAT
+def broadcast():
+    webServer = op('webserver1')
+    clients = webServer.clients
 
-```bash
-npm test
-```
+    for client in clients:
+        webServer.webSocketSendText(client, "message")
 
-### Build library
-
-```bash
-npm run build
+    print(f"Sent to {len(clients)} clients")
 ```
 
 ## Requirements
 
-- Svelte 5.0.0 or higher
-- Modern browser with WebSocket support
+- Svelte 5.0+
+- WebSocket support
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.

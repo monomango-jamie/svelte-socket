@@ -2,7 +2,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SvelteSocket } from '../lib/SvelteSocket.svelte';
-import type { SvelteSet } from 'svelte/reactivity';
 
 // Mock WebSocket
 class MockWebSocket {
@@ -67,87 +66,115 @@ describe('SvelteSocket', () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.useFakeTimers();
 	});
 
 	afterEach(() => {
 		if (socket) {
 			socket.removeSocket();
 		}
+		vi.restoreAllMocks();
 	});
 
 	describe('Constructor and Connection', () => {
-		it('should initialize with URL and create socket', () => {
-			socket = new SvelteSocket(testUrl);
-
+		it('should initialize with URL object', () => {
+			socket = new SvelteSocket({ url: testUrl });
 			expect(socket).toBeDefined();
 		});
 
-		it('should not be connected initially (CONNECTING state)', () => {
-			socket = new SvelteSocket(testUrl);
-
-			// Socket starts in CONNECTING state
-			expect(socket.isConnected).toBe(false);
+		it('should start in CONNECTING state', () => {
+			socket = new SvelteSocket({ url: testUrl });
+			expect(socket.connectionStatus).toBe(WebSocket.CONNECTING);
 		});
 
-		it('should report connected when socket is in OPEN state', async () => {
-			socket = new SvelteSocket(testUrl);
+		it('should transition to OPEN state when connected', async () => {
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
+			expect(socket.connectionStatus).toBe(WebSocket.OPEN);
+		});
 
-			// Wait for mock connection to open
+		it('should call onOpen callback when connected', async () => {
+			const onOpen = vi.fn();
+			socket = new SvelteSocket({ url: testUrl, onOpen });
+			await vi.runAllTimersAsync();
+			expect(onOpen).toHaveBeenCalled();
+		});
+
+		it('should call onClose callback when disconnected', async () => {
+			const onClose = vi.fn();
+			socket = new SvelteSocket({ url: testUrl, onClose });
+			await vi.runAllTimersAsync();
+
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.close();
+
+			expect(onClose).toHaveBeenCalled();
+		});
+
+		it('should call onError callback on error', async () => {
+			const onError = vi.fn();
+			socket = new SvelteSocket({ url: testUrl, onError });
+			await vi.runAllTimersAsync();
+
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.dispatchEvent({ type: 'error' });
+
+			expect(onError).toHaveBeenCalled();
+		});
+
+		it('should call onMessage callback on message', async () => {
+			const onMessage = vi.fn();
+			socket = new SvelteSocket({ url: testUrl, onMessage });
+			await vi.runAllTimersAsync();
+
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.dispatchEvent({ type: 'message', data: 'test' });
+
+			expect(onMessage).toHaveBeenCalled();
+		});
+	});
+
+	describe('Debug Mode', () => {
+		it('should not log when debug is false', async () => {
+			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+			socket = new SvelteSocket({ url: testUrl, debug: false });
+			await vi.runAllTimersAsync();
+			expect(consoleSpy).not.toHaveBeenCalled();
+			consoleSpy.mockRestore();
+		});
+
+		it('should log when debug is true', async () => {
+			vi.useRealTimers();
+			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+			socket = new SvelteSocket({ url: testUrl, debug: true });
 			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			expect(socket.isConnected).toBe(true);
+			expect(consoleSpy).toHaveBeenCalled();
+			consoleSpy.mockRestore();
 		});
 	});
 
 	describe('Socket Management', () => {
 		it('should close socket connection', async () => {
-			socket = new SvelteSocket(testUrl);
-			
-			await new Promise((resolve) => setTimeout(resolve, 10));
-			expect(socket.isConnected).toBe(true);
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
+			expect(socket.connectionStatus).toBe(WebSocket.OPEN);
 
 			socket.removeSocket();
-
-			expect(socket.isConnected).toBe(false);
+			expect(socket['socket']).toBeUndefined();
 		});
 
 		it('should handle closing non-existent socket gracefully', () => {
-			socket = new SvelteSocket(testUrl);
-			
-			socket.removeSocket(); // Close once
-			socket.removeSocket(); // Close again
-
-			expect(socket.isConnected).toBe(false);
-		});
-
-		it('should handle socket connection errors', async () => {
-			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
-			mockSocket.dispatchEvent({ type: 'error', error: new Error('Connection failed') });
-
-			expect(consoleSpy).toHaveBeenCalledWith('🔌 SvelteSocket error:', expect.any(Object));
-			consoleSpy.mockRestore();
-		});
-
-		it('should log when socket connects', async () => {
-			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			expect(consoleSpy).toHaveBeenCalledWith('🔌 SvelteSocket connected');
-			consoleSpy.mockRestore();
+			socket = new SvelteSocket({ url: testUrl });
+			socket.removeSocket();
+			socket.removeSocket(); // Should not throw
+			expect(socket['socket']).toBeUndefined();
 		});
 	});
 
 	describe('addEventListener', () => {
 		it('should add event listener to socket', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
 
 			const messageHandler = vi.fn();
 			socket.addEventListener('message', messageHandler);
@@ -159,64 +186,19 @@ describe('SvelteSocket', () => {
 		});
 
 		it('should throw error when socket is not connected', () => {
-			socket = new SvelteSocket(testUrl);
+			socket = new SvelteSocket({ url: testUrl });
 			socket.removeSocket();
 
 			expect(() => {
 				socket.addEventListener('message', () => {});
 			}).toThrow('Socket not connected');
 		});
-
-		it('should support multiple event types', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const openHandler = vi.fn();
-			const closeHandler = vi.fn();
-			const errorHandler = vi.fn();
-
-			socket.addEventListener('open', openHandler);
-			socket.addEventListener('close', closeHandler);
-			socket.addEventListener('error', errorHandler);
-
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
-			
-			mockSocket.dispatchEvent({ type: 'open' });
-			mockSocket.dispatchEvent({ type: 'close' });
-			mockSocket.dispatchEvent({ type: 'error' });
-
-			expect(openHandler).toHaveBeenCalled();
-			expect(closeHandler).toHaveBeenCalled();
-			expect(errorHandler).toHaveBeenCalled();
-		});
-
-		it('should track listeners in reactive state', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const messageHandler1 = vi.fn();
-			const messageHandler2 = vi.fn();
-			const closeHandler = vi.fn();
-
-			socket.addEventListener('message', messageHandler1);
-			socket.addEventListener('message', messageHandler2);
-			socket.addEventListener('close', closeHandler);
-
-			const messageListeners = socket.getEventListeners('message');
-			const closeListeners = socket.getEventListeners('close');
-
-			expect(messageListeners).toHaveLength(2);
-			expect(messageListeners).toContain(messageHandler1);
-			expect(messageListeners).toContain(messageHandler2);
-			expect(closeListeners).toHaveLength(1);
-			expect(closeListeners).toContain(closeHandler);
-		});
 	});
 
 	describe('removeEventListener', () => {
 		it('should remove event listener from socket', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
 
 			const messageHandler = vi.fn();
 			socket.addEventListener('message', messageHandler);
@@ -227,159 +209,12 @@ describe('SvelteSocket', () => {
 
 			expect(messageHandler).not.toHaveBeenCalled();
 		});
-
-		it('should remove listener from tracked state', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const messageHandler = vi.fn();
-			socket.addEventListener('message', messageHandler);
-			
-			expect(socket.getEventListeners('message')).toHaveLength(1);
-			
-			socket.removeEventListener('message', messageHandler);
-			
-			expect(socket.getEventListeners('message')).toHaveLength(0);
-		});
-
-		it('should handle removing non-existent listener gracefully', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const messageHandler = vi.fn();
-
-			expect(() => {
-				socket.removeEventListener('message', messageHandler);
-			}).not.toThrow();
-		});
-
-		it('should only remove the specific listener', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const handler1 = vi.fn();
-			const handler2 = vi.fn();
-
-			socket.addEventListener('message', handler1);
-			socket.addEventListener('message', handler2);
-			socket.removeEventListener('message', handler1);
-
-			const listeners = socket.getEventListeners('message');
-			expect(listeners).toHaveLength(1);
-			expect(listeners).toContain(handler2);
-			expect(listeners).not.toContain(handler1);
-		});
-	});
-
-	describe('getEventListeners', () => {
-		it('should return empty array for event with no listeners', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			expect(socket.getEventListeners('message')).toEqual([]);
-		});
-
-		it('should return all listeners for a specific event', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const handler1 = vi.fn();
-			const handler2 = vi.fn();
-
-			socket.addEventListener('message', handler1);
-			socket.addEventListener('message', handler2);
-
-			const listeners = socket.getEventListeners('message');
-			expect(listeners).toHaveLength(2);
-			expect(listeners).toContain(handler1);
-			expect(listeners).toContain(handler2);
-		});
-
-		it('should return map of all listeners when no event specified', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const messageHandler = vi.fn();
-			const closeHandler = vi.fn();
-
-			socket.addEventListener('message', messageHandler);
-			socket.addEventListener('close', closeHandler);
-
-			const allListeners = socket.getEventListeners();
-			expect(allListeners).toBeInstanceOf(Map);
-			expect((allListeners as Map<string, SvelteSet<(event: any) => void>>).size).toBe(2);
-			expect((allListeners as Map<string, SvelteSet<(event: any) => void>>).has('message')).toBe(true);
-			expect((allListeners as Map<string, SvelteSet<(event: any) => void>>).has('close')).toBe(true);
-		});
-
-		it('should clear listeners when socket is removed', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const messageHandler = vi.fn();
-			socket.addEventListener('message', messageHandler);
-
-			expect(socket.getEventListeners('message')).toHaveLength(1);
-
-			socket.removeSocket();
-
-			const allListeners = socket.getEventListeners();
-			expect((allListeners as Map<string, SvelteSet<(event: any) => void>>).size).toBe(0);
-		});
-	});
-
-	describe('isConnected', () => {
-		it('should return false when socket is not initialized', () => {
-			socket = new SvelteSocket(testUrl);
-			socket.removeSocket();
-
-			expect(socket.isConnected).toBe(false);
-		});
-
-		it('should return false when socket is connecting', () => {
-			socket = new SvelteSocket(testUrl);
-
-			expect(socket.isConnected).toBe(false);
-		});
-
-		it('should return true when socket is open', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			expect(socket.isConnected).toBe(true);
-		});
-
-		it('should return false when socket is closed', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			socket.removeSocket();
-
-			expect(socket.isConnected).toBe(false);
-		});
-	});
-
-	describe('Socket Reconnection', () => {
-		it('should close existing socket when creating a new one', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-			// Manually trigger socket recreation (simulating reconnect)
-			socket['createSocket'](testUrl);
-
-			expect(consoleSpy).toHaveBeenCalledWith(
-				'⚠️ SvelteSocket already exists, closing existing connection'
-			);
-			consoleSpy.mockRestore();
-		});
 	});
 
 	describe('sendMessage', () => {
 		it('should send message through socket', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
 
 			const mockSocket = socket['socket'] as unknown as MockWebSocket;
 			const sendSpy = vi.spyOn(mockSocket, 'send');
@@ -390,22 +225,19 @@ describe('SvelteSocket', () => {
 		});
 
 		it('should store sent message in history', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
 
 			socket.sendMessage('Test message 1');
 			socket.sendMessage('Test message 2');
 
-			const sentMessages = socket.sentMessages;
-			expect(sentMessages).toHaveLength(2);
-			expect(sentMessages[0].message).toBe('Test message 1');
-			expect(sentMessages[1].message).toBe('Test message 2');
-			expect(sentMessages[0].timestamp).toBeLessThanOrEqual(Date.now());
-			expect(sentMessages[1].timestamp).toBeLessThanOrEqual(Date.now());
+			expect(socket.sentMessages).toHaveLength(2);
+			expect(socket.sentMessages[0].message).toBe('Test message 1');
+			expect(socket.sentMessages[1].message).toBe('Test message 2');
 		});
 
 		it('should throw error when socket is not connected', () => {
-			socket = new SvelteSocket(testUrl);
+			socket = new SvelteSocket({ url: testUrl });
 			socket.removeSocket();
 
 			expect(() => {
@@ -414,89 +246,125 @@ describe('SvelteSocket', () => {
 		});
 
 		it('should throw error when socket is not in OPEN state', () => {
-			socket = new SvelteSocket(testUrl);
+			socket = new SvelteSocket({ url: testUrl });
 
-			// Socket is in CONNECTING state initially
 			expect(() => {
 				socket.sendMessage('Test');
 			}).toThrow('Socket is not in OPEN state');
-		});
-
-		it('should include timestamps with sent messages', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			const beforeTime = Date.now();
-			socket.sendMessage('Test');
-			const afterTime = Date.now();
-
-			const sentMessages = socket.sentMessages;
-			expect(sentMessages[0].timestamp).toBeGreaterThanOrEqual(beforeTime);
-			expect(sentMessages[0].timestamp).toBeLessThanOrEqual(afterTime);
-		});
-	});
-
-	describe('getSentMessages', () => {
-		it('should return empty array when no messages sent', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			expect(socket.sentMessages).toEqual([]);
-		});
-
-		it('should return all sent messages', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			socket.sendMessage('Message 1');
-			socket.sendMessage('Message 2');
-			socket.sendMessage('Message 3');
-
-			const messages = socket.sentMessages;
-			expect(messages).toHaveLength(3);
-			expect(messages.map(m => m.message)).toEqual(['Message 1', 'Message 2', 'Message 3']);
 		});
 	});
 
 	describe('clearSentMessages', () => {
 		it('should clear all sent messages', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
 
 			socket.sendMessage('Message 1');
 			socket.sendMessage('Message 2');
-
 			expect(socket.sentMessages).toHaveLength(2);
 
 			socket.clearSentMessages();
-
 			expect(socket.sentMessages).toEqual([]);
-		});
-
-		it('should not affect socket connection', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			socket.sendMessage('Test');
-			socket.clearSentMessages();
-
-			expect(socket.isConnected).toBe(true);
 		});
 	});
 
-	describe('removeSocket with sent messages', () => {
-		it('should clear sent messages when socket is removed', async () => {
-			socket = new SvelteSocket(testUrl);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+	describe('Reconnection', () => {
+		it('should not reconnect when reconnection is disabled', async () => {
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
 
-			socket.sendMessage('Message 1');
-			socket.sendMessage('Message 2');
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.close();
 
-			expect(socket.sentMessages).toHaveLength(2);
+			await vi.runAllTimersAsync();
+
+			// Should not create a new socket
+			expect(socket.connectionStatus).toBe(WebSocket.CLOSED);
+		});
+
+		it('should reconnect when enabled', async () => {
+			socket = new SvelteSocket({
+				url: testUrl,
+				reconnectOptions: { enabled: true, delay: 1000, maxAttempts: 3 }
+			});
+			await vi.runAllTimersAsync();
+
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.close();
+
+			// Should schedule reconnection
+			await vi.advanceTimersByTimeAsync(1000);
+			await vi.runAllTimersAsync();
+
+			expect(socket.connectionStatus).toBe(WebSocket.OPEN);
+		});
+
+		it('should respect maxAttempts', async () => {
+			socket = new SvelteSocket({
+				url: testUrl,
+				reconnectOptions: { enabled: true, delay: 100, maxAttempts: 2 }
+			});
+			await vi.runAllTimersAsync();
+
+			// Simulate multiple disconnections
+			for (let i = 0; i < 3; i++) {
+				const mockSocket = socket['socket'] as unknown as MockWebSocket;
+				if (mockSocket) {
+					mockSocket.close();
+					await vi.advanceTimersByTimeAsync(100);
+					await vi.runAllTimersAsync();
+				}
+			}
+
+			// Should stop after maxAttempts
+			expect(socket['reconnectAttempts']).toBeLessThanOrEqual(2);
+		});
+
+		it('should reset reconnect attempts on successful connection', async () => {
+			socket = new SvelteSocket({
+				url: testUrl,
+				reconnectOptions: { enabled: true, delay: 100, maxAttempts: 3 }
+			});
+			await vi.runAllTimersAsync();
+
+			// Disconnect and reconnect
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.close();
+			await vi.advanceTimersByTimeAsync(100);
+			await vi.runAllTimersAsync();
+
+			expect(socket['reconnectAttempts']).toBe(0);
+		});
+
+		it('should disable reconnection on removeSocket', async () => {
+			socket = new SvelteSocket({
+				url: testUrl,
+				reconnectOptions: { enabled: true, delay: 100, maxAttempts: 3 }
+			});
+			await vi.runAllTimersAsync();
 
 			socket.removeSocket();
 
-				expect(socket.sentMessages).toEqual([]);
+			// intentionalClose flag should be set to prevent reconnection
+			expect(socket['intentionalClose']).toBe(true);
+		});
+	});
+
+	describe('receivedMessages', () => {
+		it('should track received messages', async () => {
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
+
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.dispatchEvent({
+				type: 'message',
+				data: 'test message',
+				origin: 'ws://localhost:8080'
+			});
+
+			expect(socket.receivedMessages).toHaveLength(1);
+			expect(socket.receivedMessages[0].message.origin).toBe('ws://localhost:8080');
+			expect(socket.receivedMessages[0].message.data).toBe('test message');
 		});
 	});
 });

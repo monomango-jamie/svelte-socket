@@ -4,3 +4,6 @@ export { default as SocketProvider } from './SocketProvider.svelte';
 export { default as Debugger } from './components/Debugger.svelte';
 export { getSocketContext, setSocket, SOCKET_CONTEXT_KEY } from './context.js';
 export { default as useSocket } from './useSocket.svelte.js';
+
+// Export types
+export type { SocketConstructorArgs, ReconnectOptions } from './SvelteSocket.svelte';

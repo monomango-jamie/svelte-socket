@@ -3,9 +3,6 @@
 	import useSocket from '$lib/useSocket.svelte';
 
 	const socket = useSocket();
-	socket.addEventListener('open', () => console.log('🔌 SvelteSocket connected'));
-	socket.addEventListener('close', () => console.log('🔌 SvelteSocket disconnected'));
-	socket.addEventListener('error', (event) => console.error('🔌 SvelteSocket error:', event));
 </script>
 
 <button

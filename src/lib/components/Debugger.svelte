@@ -1,6 +1,6 @@
 <!--
 	@component
-	A debug panel for visualizing SvelteSocket connection status and registered event listeners.
+	A debug panel for visualizing SvelteSocket connection status, sent messages, and received messages.
 	Useful for development and troubleshooting WebSocket connections.
 	
 	@prop {SvelteSocket} socket - The SvelteSocket instance to debug
@@ -11,7 +11,7 @@
 		import { SvelteSocket } from '$lib/SvelteSocket.svelte';
 		import Debugger from '$lib/components/Debugger.svelte';
 		
-		const socket = new SvelteSocket('ws://localhost:8080');
+		const socket = new SvelteSocket({ url: 'ws://localhost:8080' });
 	</script>
 	
 	<Debugger {socket} />
@@ -19,7 +19,7 @@
 -->
 <script lang="ts">
 	import type { SvelteSocket } from '../SvelteSocket.svelte';
-	import type { SvelteSet } from 'svelte/reactivity';
+	import { slide } from 'svelte/transition';
 
 	interface Props {
 		socket: SvelteSocket;
@@ -28,15 +28,9 @@
 	let { socket }: Props = $props();
 
 	// Reactive values that will update when socket state changes
-	const isConnected = $derived(socket.isConnected);
-	const allListeners = $derived(
-		socket.getEventListeners() as Map<string, SvelteSet<(event: any) => void>>
-	);
-	const eventTypes = $derived(Array.from(allListeners.keys()));
-	const totalListeners = $derived(
-		Array.from(allListeners.values()).reduce((sum, set) => sum + set.size, 0)
-	);
+	const isConnected = $derived(socket.connectionStatus === WebSocket.OPEN);
 	const sentMessages = $derived(socket.sentMessages);
+	const receivedMessages = $derived(socket.receivedMessages);
 
 	function formatTimestamp(timestamp: number): string {
 		const date = new Date(timestamp);
@@ -86,30 +80,50 @@
 				<span class="mb-1 text-xs text-slate-500">State</span>
 				<span
 					class="font-mono text-lg"
-					class:text-green-400={isConnected}
-					class:text-red-400={!isConnected}
+					class:text-green-400={socket.connectionStatus === WebSocket.OPEN}
+					class:text-yellow-400={socket.connectionStatus === WebSocket.CONNECTING}
+					class:text-orange-400={socket.connectionStatus === WebSocket.CLOSING}
+					class:text-red-400={socket.connectionStatus === WebSocket.CLOSED}
 				>
-					{isConnected ? 'OPEN' : 'CLOSED'}
+					{#if socket.connectionStatus === WebSocket.CONNECTING}
+						CONNECTING
+					{:else if socket.connectionStatus === WebSocket.OPEN}
+						OPEN
+					{:else if socket.connectionStatus === WebSocket.CLOSING}
+						CLOSING
+					{:else}
+						CLOSED
+					{/if}
 				</span>
-			</div>
-			<div class="flex flex-col">
-				<span class="mb-1 text-xs text-slate-500">Total Listeners</span>
-				<span class="font-mono text-lg text-blue-400">{totalListeners}</span>
 			</div>
 			<div class="flex flex-col">
 				<span class="mb-1 text-xs text-slate-500">Messages Sent</span>
 				<span class="font-mono text-lg text-emerald-400">{sentMessages.length}</span>
 			</div>
+			<div class="flex flex-col">
+				<span class="mb-1 text-xs text-slate-500">Messages Received</span>
+				<span class="font-mono text-lg text-blue-400">{receivedMessages.length}</span>
+			</div>
 		</div>
 	</div>
 
-	<!-- Event Listeners Card -->
+	<!-- Received Messages Card -->
 	<div class="rounded-lg border border-slate-700 bg-slate-800 p-4">
-		<h3 class="mb-3 text-sm font-semibold tracking-wide text-slate-400 uppercase">
-			Registered Event Listeners
-		</h3>
+		<div class="mb-3 flex items-center justify-between">
+			<h3 class="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+				Received Messages
+			</h3>
+			{#if receivedMessages.length > 0}
+				<button
+					onclick={() => (socket.receivedMessages = [])}
+					class="rounded border border-blue-500/30 bg-blue-500/20 px-2 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-500/30"
+				>
+					Clear
+				</button>
+			{/if}
+		</div>
 
-		{#if eventTypes.length === 0}
+		{#if receivedMessages.length === 0}
 			<div class="py-8 text-center text-slate-500">
 				<svg
 					class="mx-auto mb-3 h-12 w-12 opacity-50"
@@ -124,41 +138,26 @@
 						d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
 					/>
 				</svg>
-				<p class="text-sm">No event listeners registered</p>
+				<p class="text-sm">No messages received yet</p>
 			</div>
 		{:else}
-			<div class="space-y-3">
-				{#each eventTypes as eventType}
-					{@const listeners = allListeners.get(eventType)}
-					{@const count = listeners?.size || 0}
-					<div class="rounded-md border border-slate-600 bg-slate-900 p-3">
-						<div class="mb-2 flex items-center justify-between">
-							<div class="flex items-center gap-2">
-								<span
-									class="rounded border border-purple-500/30 bg-purple-500/20 px-2 py-1 font-mono text-xs text-purple-300"
-								>
-									{eventType}
+			<div class="max-h-64 space-y-2 overflow-y-auto">
+				{#each receivedMessages as { message }, index (message)}
+					<div
+						class="rounded-md border border-slate-600 bg-slate-900 p-3"
+						in:slide={{ duration: 200 }}
+					>
+						<div class="mb-2 flex items-start justify-between gap-2">
+							{#if message.origin}
+								<span class="font-mono text-xs text-blue-400">
+									{message.origin}
 								</span>
-								<span class="text-xs text-slate-400">
-									{count}
-									{count === 1 ? 'listener' : 'listeners'}
-								</span>
-							</div>
-							<span class="font-mono text-xs text-slate-500">
-								#{count}
-							</span>
+							{/if}
 						</div>
-
-						<!-- Listener Functions Preview -->
-						<div class="mt-2 space-y-1">
-							{#each Array.from(listeners || []) as listener, index}
-								<div
-									class="rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-500"
-								>
-									<span class="text-slate-600">fn_{index + 1}:</span>
-									<span class="text-amber-400">{listener.name || 'anonymous'}</span>
-								</div>
-							{/each}
+						<div
+							class="rounded border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm break-all text-slate-300"
+						>
+							{message.data || '(empty message)'}
 						</div>
 					</div>
 				{/each}
@@ -199,12 +198,12 @@
 			</div>
 		{:else}
 			<div class="max-h-64 space-y-2 overflow-y-auto">
-				{#each sentMessages as { message, timestamp }, index}
-					<div class="rounded-md border border-slate-600 bg-slate-900 p-3">
+				{#each sentMessages as { message, timestamp }, index (timestamp)}
+					<div
+						class="rounded-md border border-slate-600 bg-slate-900 p-3"
+						in:slide={{ duration: 200 }}
+					>
 						<div class="mb-2 flex items-start justify-between gap-2">
-							<span class="font-mono text-xs text-slate-500">
-								#{sentMessages.length - index}
-							</span>
 							<span class="font-mono text-xs text-emerald-400">
 								{formatTimestamp(timestamp)}
 							</span>

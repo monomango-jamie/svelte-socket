@@ -1,77 +1,160 @@
 <script lang="ts" module>
-	import { SvelteSet } from 'svelte/reactivity';
+	/**
+	 * Options for automatic reconnection.
+	 */
+	export interface ReconnectOptions {
+		/** Whether automatic reconnection is enabled */
+		enabled: boolean;
+
+		/** Delay in milliseconds before attempting to reconnect */
+		delay: number;
+
+		/** Maximum number of reconnection attempts before giving up */
+		maxAttempts: number;
+	}
+
+	/**
+	 * Configuration options for creating a new SvelteSocket instance.
+	 */
+	export interface SocketConstructorArgs {
+		/** The WebSocket server URL to connect to (e.g., 'ws://localhost:8080') */
+		url: string;
+
+		/** Optional callback fired when a message is received from the server */
+		onMessage?: (messageEvent: MessageEvent) => void;
+
+		/** Optional callback fired when the WebSocket connection is established */
+		onOpen?: (openEvent: Event) => void;
+
+		/** Optional callback fired when the WebSocket connection is closed */
+		onClose?: (closeEvent: CloseEvent) => void;
+
+		/** Optional callback fired when a WebSocket error occurs */
+		onError?: (errorEvent: Event) => void;
+
+		/** Optional flag to enable debug console logging. Default: false */
+		debug?: boolean;
+
+		/** Optional configuration for automatic reconnection */
+		reconnectOptions?: ReconnectOptions;
+	}
 
 	/**
 	 * A reactive WebSocket wrapper using Svelte 5 runes.
-	 * Provides an interface for managing WebSocket connections with built-in state tracking.
+	 *
+	 * @property {WebSocket['readyState']} connectionStatus - Current connection state (CONNECTING, OPEN, CLOSING, CLOSED)
+	 * @property {Array<{message: string, timestamp: number}>} sentMessages - Reactive array of sent messages
+	 * @property {Array<{message: MessageEvent}>} receivedMessages - Reactive array of received messages (stores MessageEvent objects)
+	 *
+	 * @example
+	 * Basic usage:
+	 * ```typescript
+	 * const socket = new SvelteSocket({
+	 *   url: 'ws://localhost:8080',
+	 *   onMessage: (event) => console.log(event.data),
+	 *   onOpen: () => console.log('Connected!')
+	 * });
+	 *
+	 * socket.sendMessage('Hello, Server!');
+	 *
+	 * // Access received messages
+	 * socket.receivedMessages.forEach(({ message }) => {
+	 *   console.log(message.data, message.origin);
+	 * });
+	 * ```
+	 *
+	 * @example
+	 * With auto-reconnect:
+	 * ```typescript
+	 * const socket = new SvelteSocket({
+	 *   url: 'ws://localhost:8080',
+	 *   debug: true,
+	 *   reconnectOptions: {
+	 *     enabled: true,
+	 *     delay: 1000,
+	 *     maxAttempts: 5
+	 *   }
+	 * });
+	 * ```
 	 */
 	export class SvelteSocket {
 		private socket = $state<WebSocket>();
-		private listeners = $state<Map<string, SvelteSet<(event: any) => void>>>(new Map());
-		public isConnected = $state(false);
+		private onMessageEvent = $state<((messageEvent: MessageEvent) => void) | undefined>(undefined);
+		private onOpenProp = $state<((openEvent: Event) => void) | undefined>(undefined);
+		private onCloseProp = $state<((closeEvent: CloseEvent) => void) | undefined>(undefined);
+		private onErrorProp = $state<((errorEvent: Event) => void) | undefined>(undefined);
+		public connectionStatus = $state<WebSocket['readyState']>(WebSocket.CLOSED);
 		public sentMessages = $state<Array<{ message: string; timestamp: number }>>([]);
+		public receivedMessages = $state<Array<{ message: MessageEvent }>>([]);
+		private debug = $state(false);
+		private reconnectOptions = $state<ReconnectOptions | undefined>(undefined);
+
+		// Reconnection state
+		private url: string = '';
+		private reconnectAttempts = $state(0);
+		private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+		private intentionalClose = false; // Flag to prevent reconnection on manual close
 		/**
 		 * Creates a new SvelteSocket instance and establishes the WebSocket connection.
 		 *
-		 * @param {string} url - The WebSocket server URL to connect to
+		 * @param {SocketConstructorArgs} options - Configuration options for the socket
+		 * @param {string} options.url - The WebSocket server URL to connect to
+		 * @param {(messageEvent: MessageEvent) => void} [options.onMessage] - Optional callback fired when a message is received
+		 * @param {(openEvent: Event) => void} [options.onOpen] - Optional callback fired when the connection opens
+		 * @param {(closeEvent: CloseEvent) => void} [options.onClose] - Optional callback fired when the connection closes
+		 * @param {(errorEvent: Event) => void} [options.onError] - Optional callback fired when an error occurs
+		 * @param {boolean} [options.debug=false] - Enable debug console logging
+		 * @param {ReconnectOptions} [options.reconnectOptions] - Auto-reconnection configuration
 		 */
-		constructor(url: string) {
+		constructor({
+			url,
+			onMessage,
+			onOpen,
+			onClose,
+			onError,
+			debug = false,
+			reconnectOptions = undefined
+		}: SocketConstructorArgs) {
+			this.url = url;
+			this.onMessageEvent = onMessage;
+			this.onOpenProp = onOpen;
+			this.onCloseProp = onClose;
+			this.onErrorProp = onError;
+			this.debug = debug;
+			this.reconnectOptions = reconnectOptions;
 			this.createSocket(url);
 		}
 
 		/**
 		 * Adds an event listener to the WebSocket connection.
-		 * Tracks the listener in a reactive SvelteSet for later retrieval.
 		 *
-		 * @param {string} event - The event type to listen for (e.g., 'message', 'close', 'open', 'error')
-		 * @param {(event: any) => void} callback - The callback function to execute when the event occurs
+		 * @param {'message' | 'close' | 'open' | 'error'} event - The event type to listen for
+		 * @param {(event: Event) => void} callback - The callback function to execute when the event occurs
 		 * @throws {Error} If the socket is not connected
 		 */
-		public addEventListener(event: string, callback: (event: any) => void) {
+		public addEventListener(
+			event: 'message' | 'close' | 'open' | 'error',
+			callback: (event: Event) => void
+		) {
 			if (!this.socket) {
 				throw new Error('Socket not connected');
 			}
 			this.socket.addEventListener(event, callback);
-
-			// Track the listener reactively
-			if (!this.listeners.has(event)) {
-				this.listeners.set(event, new SvelteSet());
-			}
-			this.listeners.get(event)!.add(callback);
 		}
 
 		/**
 		 * Removes an event listener from the WebSocket connection.
 		 *
-		 * @param {string} event - The event type
-		 * @param {(event: any) => void} callback - The callback function to remove
+		 * @param {'message' | 'close' | 'open' | 'error'} event - The event type
+		 * @param {(event: Event) => void} callback - The callback function to remove
 		 */
-		public removeEventListener(event: string, callback: (event: any) => void) {
+		public removeEventListener(
+			event: 'message' | 'close' | 'open' | 'error',
+			callback: (event: Event) => void
+		) {
 			if (this.socket) {
 				this.socket.removeEventListener(event, callback);
 			}
-
-			// Remove from tracked listeners
-			const eventListeners = this.listeners.get(event);
-			if (eventListeners) {
-				eventListeners.delete(callback);
-				if (eventListeners.size === 0) {
-					this.listeners.delete(event);
-				}
-			}
-		}
-
-		/**
-		 * Gets all registered event listeners, optionally filtered by event type.
-		 *
-		 * @param {string} [event] - Optional event type to filter by
-		 * @returns {Array | Map} Array of listeners for a specific event, or Map of all listeners
-		 */
-		public getEventListeners(event?: string) {
-			if (event) {
-				return Array.from(this.listeners.get(event) || []);
-			}
-			return this.listeners;
 		}
 
 		/**
@@ -89,7 +172,7 @@
 			}
 
 			this.socket.send(message);
-			this.sentMessages.push({
+			this.sentMessages.unshift({
 				message,
 				timestamp: Date.now()
 			});
@@ -103,51 +186,113 @@
 		}
 
 		/**
+		 * Attempts to reconnect to the WebSocket server.
+		 * @private
+		 */
+		private attemptReconnect(): void {
+			// Don't reconnect if close was intentional
+			if (this.intentionalClose) {
+				return;
+			}
+
+			if (
+				!this.reconnectOptions?.enabled ||
+				this.reconnectAttempts >= this.reconnectOptions.maxAttempts
+			) {
+				return;
+			}
+
+			this.reconnectAttempts++;
+
+			this.reconnectTimeoutId = setTimeout(() => {
+				this.createSocket(this.url);
+			}, this.reconnectOptions.delay);
+		}
+
+		/**
 		 * Creates and connects a new WebSocket connection.
-		 * Sets up event listeners for connection open and error events.
+		 * Sets up internal event listeners for open, close, error, and message events.
 		 * If a socket already exists, it will be closed before creating a new one.
+		 * Automatic reconnection is handled via the attemptReconnect method on close events.
 		 *
 		 * @param {string} url - The WebSocket server URL to connect to
 		 * @private
 		 */
 		private createSocket(url: string): void {
+			// Reset intentional close flag when creating/reconnecting
+			this.intentionalClose = false;
+
 			if (this.socket) {
-				console.log('⚠️ SvelteSocket already exists, closing existing connection');
+				if (this.debug) {
+					console.log('⚠️ SvelteSocket already exists, closing existing connection');
+				}
 				this.removeSocket();
 			}
-
+			this.connectionStatus = WebSocket.CONNECTING;
 			this.socket = new WebSocket(url);
 
-			this.socket.addEventListener('open', () => {
-				this.isConnected = true;
-				console.log('🔌 SvelteSocket connected');
+			this.socket.addEventListener('open', (event) => {
+				this.connectionStatus = WebSocket.OPEN;
+				this.reconnectAttempts = 0;
+				if (this.reconnectTimeoutId) clearTimeout(this.reconnectTimeoutId);
+				this.onOpenProp?.(event);
 			});
 
-			this.socket.addEventListener('close', () => {
-				this.isConnected = false;
-				console.log('🔌 SvelteSocket disconnected');
+			this.socket.addEventListener('close', (closeEvent: CloseEvent) => {
+				this.connectionStatus = WebSocket.CLOSED;
+				this.onCloseProp?.(closeEvent);
+				this.attemptReconnect();
 			});
 
-			this.socket.addEventListener('error', (error) => {
-				console.error('🔌 SvelteSocket error:', error);
+			this.socket.addEventListener('error', (errorEvent: Event) => {
+				if (this.debug) {
+					console.error('🔌 SvelteSocket error:', errorEvent);
+				}
+				this.onErrorProp?.(errorEvent);
 			});
 
-			return console.log('🔌 SvelteSocket created', this.socket);
+			this.socket.addEventListener('message', (messageEvent: MessageEvent) => {
+				if (this.debug) {
+					console.log('🔌 SvelteSocket message:', messageEvent.data);
+				}
+				this.receivedMessages.unshift({
+					message: messageEvent
+				});
+				this.onMessageEvent?.(messageEvent);
+			});
+
+			if (this.debug) {
+				console.log('🔌 SvelteSocket created', this.socket);
+			}
+			return;
 		}
 
 		/**
-		 * Closes and removes the current WebSocket connection.
-		 * Sets the socket instance to null and clears all tracked listeners and message history.
+		 * Closes the WebSocket connection and prevents reconnection.
 		 */
 		public removeSocket(): void {
-			if (this.socket) {
-				console.log('🔌 Closing socket connection');
-				this.socket.close();
-				this.socket = undefined;
-				this.listeners.clear();
-				this.sentMessages = [];
+			// Set flag to prevent reconnection when close event fires
+			this.intentionalClose = true;
+
+			// Clear any pending reconnection timeout
+			if (this.reconnectTimeoutId) {
+				clearTimeout(this.reconnectTimeoutId);
+				this.reconnectTimeoutId = null;
 			}
-			return;
+
+			if (this.socket) {
+				this.connectionStatus = WebSocket.CLOSING;
+				this.socket.close();
+				this.connectionStatus = WebSocket.CLOSED;
+				this.socket = undefined;
+
+				// Clear message history
+				this.sentMessages = [];
+				this.receivedMessages = [];
+			}
+
+			// Reset reconnection attempts
+			this.reconnectAttempts = 0;
 		}
 	}
 </script>
