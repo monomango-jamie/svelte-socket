@@ -1,7 +1,9 @@
 {
 	"name": "@hardingjam/svelte-socket",
 	"version": "0.0.1",
-	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build && npm run prepack",
