@@ -47,7 +47,7 @@ npm install svelte-socket
 </script>
 
 <SocketProvider {socket}>
-	<p>Connected</p>
+    {@render children()}
 </SocketProvider >
 ```
 
@@ -59,13 +59,15 @@ npm install svelte-socket
 	import { useSocket } from 'svelte-socket';
 	let { children } = $props();
 	const socket = useSocket()
-	const isConnected = $derived(socket.connectionStatus === WebSocket.OPEN);
+	let isConnected = $derived(socket.connectionStatus === WebSocket.OPEN);
+	let receivedMessages = $derived(socket.receivedMessages)
 </script>
 
-<SocketProvider {socket}>
-	{isConnected}
-    {@render children()}
-</SocketProvider >
+<p>{isConnected}</p>
+{#each receivedMessages as msg, i}
+	<p>{msg.origin}<p>
+</each>
+
 ```
 
 
