@@ -29,6 +29,7 @@ npm install svelte-socket
 ## Usage
 
 ```svelte
+// In parent components including +page.svelte or +layout.svelte...
 <script>
 	import { SvelteSocket } from 'svelte-socket';
 
@@ -44,10 +45,27 @@ npm install svelte-socket
 	socket.sendMessage('text');
 </script>
 
-{#if isConnected}
+<SocketProvider {socket}>
 	<p>Connected</p>
-{/if}
+</SocketProvider >
 ```
+
+```svelte
+// In any child component...
+<script>
+	import { useSocket } from 'svelte-socket';
+	let { children } = $props();
+	const socket = useSocket()
+	const isConnected = $derived(socket.connectionStatus === WebSocket.OPEN);
+</script>
+
+<SocketProvider {socket}>
+	{isConnected}
+    {@render children()}
+</SocketProvider >
+```
+
+
 
 ## API
 
