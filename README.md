@@ -66,7 +66,7 @@ npm install svelte-socket
 <p>{isConnected}</p>
 {#each receivedMessages as msg, i}
 	<p>{msg.origin}<p>
-</each>
+{/each}
 
 ```
 
