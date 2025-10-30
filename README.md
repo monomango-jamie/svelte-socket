@@ -235,24 +235,63 @@ socket.removeSocket();
 
 ### `SocketProvider`
 
-Context provider component.
+Context provider component that makes a socket instance available to child components.
 
 **Props:**
 
-| Property   | Type      | Required |
-| ---------- | --------- | -------- |
-| `url`      | `string`  | Yes      |
-| `children` | `Snippet` | No       |
+| Property       | Type           | Required | Description                                        |
+| -------------- | -------------- | -------- | -------------------------------------------------- |
+| `url`          | `string`       | Yes*     | WebSocket server URL (automatically creates socket) |
+| `svelteSocket` | `SvelteSocket` | No       | Optional pre-configured SvelteSocket instance      |
+| `children`     | `Snippet`      | No       | Child components                                   |
 
-**Example:**
+*Required only if `svelteSocket` is not provided.
+
+**Basic Usage:**
+
+The simplest way to use the provider is to pass a `url`, which automatically creates a `SvelteSocket` for you:
 
 ```svelte
 <script>
 	import { SocketProvider } from 'svelte-socket';
+
+	let { children } = $props();
 </script>
 
 <SocketProvider url="ws://localhost:8080">
-	<YourComponent />
+	{@render children()}
+</SocketProvider>
+```
+
+**Custom Socket Configuration:**
+
+You can also create your own `SvelteSocket` with custom callbacks and options, then pass it to the provider:
+
+```svelte
+<script>
+	import { SocketProvider, SvelteSocket } from 'svelte-socket';
+
+	let { children } = $props();
+
+	const svelteSocket = new SvelteSocket({
+		url: 'ws://localhost:8080',
+		debug: true,
+		reconnectOptions: {
+			enabled: true,
+			delay: 1000,
+			maxAttempts: 5
+		},
+		onMessage: (event) => {
+			console.log('Received:', event.data);
+		},
+		onOpen: () => {
+			console.log('Connected!');
+		}
+	});
+</script>
+
+<SocketProvider {svelteSocket}>
+	{@render children()}
 </SocketProvider>
 ```
 
@@ -430,17 +469,18 @@ Gets socket from context. Throws if not found.
 ### With Provider
 
 ```svelte
-<!-- App.svelte -->
+<!-- +layout.svelte -->
 <script>
 	import { SocketProvider } from 'svelte-socket';
-	import ChatComponent from './ChatComponent.svelte';
+
+	let { children } = $props();
 </script>
 
 <SocketProvider url="ws://localhost:8080">
-	<ChatComponent />
+	{@render children()}
 </SocketProvider>
 
-<!-- ChatComponent.svelte -->
+<!-- +page.svelte -->
 <script>
 	import { useSocket } from 'svelte-socket';
 
