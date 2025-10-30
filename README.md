@@ -28,8 +28,9 @@ npm install svelte-socket
 
 ## Usage
 
+### In parent components including +page.svelte or +layout.svelte...
+
 ```svelte
-// In parent components including +page.svelte or +layout.svelte...
 <script>
 	import { SvelteSocket } from 'svelte-socket';
 
@@ -50,8 +51,10 @@ npm install svelte-socket
 </SocketProvider >
 ```
 
+### In any child component...
+
+
 ```svelte
-// In any child component...
 <script>
 	import { useSocket } from 'svelte-socket';
 	let { children } = $props();
