@@ -348,7 +348,28 @@ Displays:
 - Sent message history with timestamps
 - Received message history with data
 
-Requires Tailwind CSS.
+**Styling Requirements:**
+
+This component requires Tailwind CSS. You must configure Tailwind to scan the package files:
+
+**Tailwind v4:**
+```css
+/* app.css */
+@import 'tailwindcss';
+@source '../node_modules/@hardingjam/svelte-socket/dist/**/*.svelte';
+```
+
+**Tailwind v3:**
+```js
+// tailwind.config.js
+export default {
+  content: [
+    './src/**/*.{html,js,svelte,ts}',
+    './node_modules/@hardingjam/svelte-socket/dist/**/*.svelte'
+  ],
+  // ... rest of config
+}
+```
 
 ---
 

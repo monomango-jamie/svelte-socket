@@ -78,7 +78,7 @@
 	 * ```
 	 */
 	export class SvelteSocket {
-		private socket = $state<WebSocket>();
+		public socket = $state<WebSocket>();
 		private onMessageEvent = $state<((messageEvent: MessageEvent) => void) | undefined>(undefined);
 		private onOpenProp = $state<((openEvent: Event) => void) | undefined>(undefined);
 		private onCloseProp = $state<((closeEvent: CloseEvent) => void) | undefined>(undefined);
