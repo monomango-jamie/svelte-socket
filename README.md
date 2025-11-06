@@ -35,7 +35,10 @@ npm install svelte-socket
 	import { SvelteSocket } from 'svelte-socket';
 
 	// Callbacks can be added on construction...
-	const socket = new SvelteSocket({ url: 'ws://localhost:8080', onOpen: () => console.log('Hello, server!') });
+	const socket = new SvelteSocket({
+		url: 'ws://localhost:8080',
+		onOpen: () => console.log('Hello, server!')
+	});
 	const isConnected = $derived(socket.connectionStatus === WebSocket.OPEN);
 
 	// ...or later using addEventListener
@@ -47,12 +50,11 @@ npm install svelte-socket
 </script>
 
 <SocketProvider {svelteSocket}>
-    {@render children()}
-</SocketProvider >
+	{@render children()}
+</SocketProvider>
 ```
 
 ### In any child component...
-
 
 ```svelte
 <script>
@@ -70,8 +72,6 @@ npm install svelte-socket
 
 ```
 
-
-
 ## API
 
 ### `SvelteSocket`
@@ -84,16 +84,16 @@ new SvelteSocket(options: SocketConstructorArgs)
 
 **Options:**
 
-| Property           | Type                            | Required | Description                               |
-| ------------------ | ------------------------------- | -------- | ----------------------------------------- |
-| `url`              | `string`                        | Yes      | WebSocket server URL                      |
-| `onMessage`        | `(event: MessageEvent) => void` | No       | Called when message received              |
-| `onOpen`           | `(event: Event) => void`        | No       | Called when connection opens              |
-| `onClose`          | `(event: CloseEvent) => void`   | No       | Called when connection closes             |
-| `onError`          | `(event: Event) => void`        | No       | Called on error                           |
-| `debug`            | `boolean`                       | No       | Enable console logging (default: `false`) |
-| `reconnectOptions` | `ReconnectOptions`              | No       | Auto-reconnection config                  |
-| `maxMessageHistory` | `number`                       | No       | Max messages to keep in history (default: `50`). Set to `0` for unlimited |
+| Property            | Type                            | Required | Description                                                               |
+| ------------------- | ------------------------------- | -------- | ------------------------------------------------------------------------- |
+| `url`               | `string`                        | Yes      | WebSocket server URL                                                      |
+| `onMessage`         | `(event: MessageEvent) => void` | No       | Called when message received                                              |
+| `onOpen`            | `(event: Event) => void`        | No       | Called when connection opens                                              |
+| `onClose`           | `(event: CloseEvent) => void`   | No       | Called when connection closes                                             |
+| `onError`           | `(event: Event) => void`        | No       | Called on error                                                           |
+| `debug`             | `boolean`                       | No       | Enable console logging (default: `false`)                                 |
+| `reconnectOptions`  | `ReconnectOptions`              | No       | Auto-reconnection config                                                  |
+| `maxMessageHistory` | `number`                        | No       | Max messages to keep in history (default: `50`). Set to `0` for unlimited |
 
 **ReconnectOptions:**
 
@@ -123,12 +123,12 @@ const socket = new SvelteSocket({
 
 #### Properties
 
-| Property           | Type                                          | Description                                                                 |
-| ------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
-| `connectionStatus` | `WebSocket['readyState']`                     | Connection state: `0` (CONNECTING), `1` (OPEN), `2` (CLOSING), `3` (CLOSED) |
-| `sentMessages`     | `Array<{message: string \| ArrayBuffer \| Blob \| ArrayBufferView, timestamp: number}>` | Sent message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
-| `receivedMessages` | `Array<{message: MessageEvent}>`              | Received message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
-| `maxMessageHistory` | `number`                                     | Maximum number of messages to keep in history (default: `50`, readonly)     |
+| Property            | Type                                                                                    | Description                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `connectionStatus`  | `WebSocket['readyState']`                                                               | Connection state: `0` (CONNECTING), `1` (OPEN), `2` (CLOSING), `3` (CLOSED)                 |
+| `sentMessages`      | `Array<{message: string \| ArrayBuffer \| Blob \| ArrayBufferView, timestamp: number}>` | Sent message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory`     |
+| `receivedMessages`  | `Array<{message: MessageEvent}>`                                                        | Received message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
+| `maxMessageHistory` | `number`                                                                                | Maximum number of messages to keep in history (default: `50`, readonly)                     |
 
 **Example:**
 
@@ -169,6 +169,7 @@ addEventListener(
 ```
 
 Adds event listener to WebSocket. The callback type is automatically inferred based on the event type:
+
 - `'message'` → `(event: MessageEvent) => void`
 - `'close'` → `(event: CloseEvent) => void`
 - `'open'` → `(event: Event) => void`
@@ -263,13 +264,13 @@ Context provider component that makes a socket instance available to child compo
 
 **Props:**
 
-| Property       | Type           | Required | Description                                        |
-| -------------- | -------------- | -------- | -------------------------------------------------- |
-| `url`          | `string`       | Yes*     | WebSocket server URL (automatically creates socket) |
-| `svelteSocket` | `SvelteSocket` | Yes*     | Pre-configured SvelteSocket instance      |
-| `children`     | `Snippet`      | No       | Child components                                   |
+| Property       | Type           | Required | Description                                         |
+| -------------- | -------------- | -------- | --------------------------------------------------- |
+| `url`          | `string`       | Yes\*    | WebSocket server URL (automatically creates socket) |
+| `svelteSocket` | `SvelteSocket` | Yes\*    | Pre-configured SvelteSocket instance                |
+| `children`     | `Snippet`      | No       | Child components                                    |
 
-*At least one of `url` or `svelteSocket` must be provided. If both are provided, `svelteSocket` takes precedence.
+\*At least one of `url` or `svelteSocket` must be provided. If both are provided, `svelteSocket` takes precedence.
 
 **Basic Usage:**
 
@@ -377,6 +378,7 @@ Displays:
 This component requires Tailwind CSS. You must configure Tailwind to scan the package files:
 
 **Tailwind v4:**
+
 ```css
 /* app.css */
 @import 'tailwindcss';
@@ -384,15 +386,16 @@ This component requires Tailwind CSS. You must configure Tailwind to scan the pa
 ```
 
 **Tailwind v3:**
+
 ```js
 // tailwind.config.js
 export default {
-  content: [
-    './src/**/*.{html,js,svelte,ts}',
-    './node_modules/@hardingjam/svelte-socket/dist/**/*.svelte'
-  ],
-  // ... rest of config
-}
+	content: [
+		'./src/**/*.{html,js,svelte,ts}',
+		'./node_modules/@hardingjam/svelte-socket/dist/**/*.svelte'
+	]
+	// ... rest of config
+};
 ```
 
 ---

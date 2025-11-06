@@ -79,51 +79,51 @@ describe('SocketProvider', () => {
 	describe('Props Logic (Unit Tests)', () => {
 		it('should create socket from url when only url is provided', () => {
 			const testUrl = 'ws://localhost:8080';
-			
+
 			// Simulate what SocketProvider does
 			const url = testUrl;
 			const svelteSocket = undefined;
-			
+
 			// Should not throw
 			expect(url || svelteSocket).toBeTruthy();
-			
+
 			// Should create socket from url
 			socket = svelteSocket ?? new SvelteSocket({ url });
-			
+
 			expect(socket).toBeDefined();
 			expect(socket['url']).toBe(testUrl);
 		});
 
 		it('should use provided svelteSocket when only svelteSocket is provided', () => {
 			const customSocket = new SvelteSocket({ url: 'ws://localhost:9999' });
-			
+
 			// Simulate what SocketProvider does
 			const url = undefined;
 			const svelteSocket = customSocket;
-			
+
 			// Should not throw
 			expect(url || svelteSocket).toBeTruthy();
-			
+
 			// Should use provided socket
 			socket = svelteSocket ?? new SvelteSocket({ url: url! });
-			
+
 			expect(socket).toBe(customSocket);
 			expect(socket['url']).toBe('ws://localhost:9999');
 		});
 
 		it('should prefer svelteSocket over url when both are provided', () => {
 			const customSocket = new SvelteSocket({ url: 'ws://localhost:9999' });
-			
+
 			// Simulate what SocketProvider does
 			const url = 'ws://localhost:8080';
 			const svelteSocket = customSocket;
-			
+
 			// Should not throw
 			expect(url || svelteSocket).toBeTruthy();
-			
+
 			// Should prefer svelteSocket
 			socket = svelteSocket ?? new SvelteSocket({ url });
-			
+
 			expect(socket).toBe(customSocket);
 			expect(socket['url']).toBe('ws://localhost:9999');
 		});
@@ -132,11 +132,13 @@ describe('SocketProvider', () => {
 			// Simulate what SocketProvider does
 			const url = undefined;
 			const svelteSocket = undefined;
-			
+
 			// Should throw error
 			if (!url && !svelteSocket) {
 				expect(() => {
-					throw new Error('SocketProvider requires either "url" or "svelteSocket" prop to be provided');
+					throw new Error(
+						'SocketProvider requires either "url" or "svelteSocket" prop to be provided'
+					);
 				}).toThrow('SocketProvider requires either "url" or "svelteSocket" prop to be provided');
 			}
 		});
@@ -163,4 +165,3 @@ describe('SocketProvider', () => {
 		});
 	});
 });
-

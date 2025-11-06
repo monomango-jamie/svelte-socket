@@ -33,7 +33,9 @@
 	const receivedMessages = $derived(socket.receivedMessages);
 	const maxMessageHistory = socket.maxMessageHistory;
 	const sentAtLimit = $derived(sentMessages.length >= maxMessageHistory && maxMessageHistory > 0);
-	const receivedAtLimit = $derived(receivedMessages.length >= maxMessageHistory && maxMessageHistory > 0);
+	const receivedAtLimit = $derived(
+		receivedMessages.length >= maxMessageHistory && maxMessageHistory > 0
+	);
 
 	function formatTimestamp(timestamp: number): string {
 		const date = new Date(timestamp);
@@ -118,22 +120,26 @@
 			</div>
 			<div class="flex flex-col">
 				<span class="mb-1 text-xs text-slate-500">Messages Sent</span>
-				<span 
+				<span
 					class="font-mono text-lg"
 					class:text-emerald-400={!sentAtLimit}
 					class:text-red-400={sentAtLimit}
-					title={sentAtLimit ? `Limit reached (${maxMessageHistory}). Oldest messages are being dropped.` : ''}
+					title={sentAtLimit
+						? `Limit reached (${maxMessageHistory}). Oldest messages are being dropped.`
+						: ''}
 				>
 					{sentMessages.length}{sentAtLimit ? ` ⚠️` : ''}
 				</span>
 			</div>
 			<div class="flex flex-col">
 				<span class="mb-1 text-xs text-slate-500">Messages Received</span>
-				<span 
+				<span
 					class="font-mono text-lg"
 					class:text-blue-400={!receivedAtLimit}
 					class:text-red-400={receivedAtLimit}
-					title={receivedAtLimit ? `Limit reached (${maxMessageHistory}). Oldest messages are being dropped.` : ''}
+					title={receivedAtLimit
+						? `Limit reached (${maxMessageHistory}). Oldest messages are being dropped.`
+						: ''}
 				>
 					{receivedMessages.length}{receivedAtLimit ? ` ⚠️` : ''}
 				</span>
@@ -147,14 +153,14 @@
 			<h3 class="text-sm font-semibold tracking-wide text-slate-400 uppercase">
 				Received Messages
 			</h3>
-		{#if receivedMessages.length > 0}
-			<button
-				onclick={() => socket.clearReceivedMessages()}
-				class="rounded border border-blue-500/30 bg-blue-500/20 px-2 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-500/30"
-			>
-				Clear
-			</button>
-		{/if}
+			{#if receivedMessages.length > 0}
+				<button
+					onclick={() => socket.clearReceivedMessages()}
+					class="rounded border border-blue-500/30 bg-blue-500/20 px-2 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-500/30"
+				>
+					Clear
+				</button>
+			{/if}
 		</div>
 
 		{#if receivedMessages.length === 0}

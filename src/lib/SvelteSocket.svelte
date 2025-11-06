@@ -42,15 +42,15 @@
 		/** Optional callback fired when a WebSocket error occurs */
 		onError?: (errorEvent: Event) => void;
 
-	/** Optional flag to enable debug console logging. Default: false */
-	debug?: boolean;
+		/** Optional flag to enable debug console logging. Default: false */
+		debug?: boolean;
 
-	/** Optional configuration for automatic reconnection */
-	reconnectOptions?: ReconnectOptions;
+		/** Optional configuration for automatic reconnection */
+		reconnectOptions?: ReconnectOptions;
 
-	/** Optional maximum number of messages to keep in history (sent and received). Default: 50 */
-	maxMessageHistory?: number;
-}
+		/** Optional maximum number of messages to keep in history (sent and received). Default: 50 */
+		maxMessageHistory?: number;
+	}
 
 	/**
 	 * A reactive WebSocket wrapper using Svelte 5 runes.
@@ -90,43 +90,45 @@
 	 * });
 	 * ```
 	 */
-	
+
 	export class SvelteSocket {
 		public socket = $state<WebSocket>();
 		private onMessageEvent?: (messageEvent: MessageEvent) => void;
 		private onOpenProp?: (openEvent: Event) => void;
 		private onCloseProp?: (closeEvent: CloseEvent) => void;
 		private onErrorProp?: (errorEvent: Event) => void;
-	public connectionStatus = $state<WebSocket['readyState']>(WebSocket.CLOSED);
-	public sentMessages = $state<Array<{ message: string | ArrayBuffer | Blob | ArrayBufferView; timestamp: number }>>([]);
-	public receivedMessages = $state<Array<{ message: MessageEvent }>>([]);
-	private debug: boolean;
-	private reconnectOptions?: ReconnectOptions;
-	public readonly maxMessageHistory: number;
+		public connectionStatus = $state<WebSocket['readyState']>(WebSocket.CLOSED);
+		public sentMessages = $state<
+			Array<{ message: string | ArrayBuffer | Blob | ArrayBufferView; timestamp: number }>
+		>([]);
+		public receivedMessages = $state<Array<{ message: MessageEvent }>>([]);
+		private debug: boolean;
+		private reconnectOptions?: ReconnectOptions;
+		public readonly maxMessageHistory: number;
 
-	// Reconnection state
-	private url: string = '';
-	private reconnectAttempts = $state(0);
-	private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
-	private intentionalClose = false; // Flag to prevent reconnection on manual close
+		// Reconnection state
+		private url: string = '';
+		private reconnectAttempts = $state(0);
+		private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+		private intentionalClose = false; // Flag to prevent reconnection on manual close
 
-	/**
-	 * Helper method to get a human-readable connection status string
-	 */
-	private getReadyStateString(): string {
-		switch (this.connectionStatus) {
-			case WebSocket.CONNECTING:
-				return 'CONNECTING';
-			case WebSocket.OPEN:
-				return 'OPEN';
-			case WebSocket.CLOSING:
-				return 'CLOSING';
-			case WebSocket.CLOSED:
-				return 'CLOSED';
-			default:
-				return 'UNKNOWN';
+		/**
+		 * Helper method to get a human-readable connection status string
+		 */
+		private getReadyStateString(): string {
+			switch (this.connectionStatus) {
+				case WebSocket.CONNECTING:
+					return 'CONNECTING';
+				case WebSocket.OPEN:
+					return 'OPEN';
+				case WebSocket.CLOSING:
+					return 'CLOSING';
+				case WebSocket.CLOSED:
+					return 'CLOSED';
+				default:
+					return 'UNKNOWN';
+			}
 		}
-	}
 		/**
 		 * Creates a new SvelteSocket instance and establishes the WebSocket connection.
 		 *
@@ -135,118 +137,118 @@
 		 * @param {(messageEvent: MessageEvent) => void} [options.onMessage] - Optional callback fired when a message is received
 		 * @param {(openEvent: Event) => void} [options.onOpen] - Optional callback fired when the connection opens
 		 * @param {(closeEvent: CloseEvent) => void} [options.onClose] - Optional callback fired when the connection closes
-	 * @param {(errorEvent: Event) => void} [options.onError] - Optional callback fired when an error occurs
-	 * @param {boolean} [options.debug=false] - Enable debug console logging
-	 * @param {ReconnectOptions} [options.reconnectOptions] - Auto-reconnection configuration
-	 * @param {number} [options.maxMessageHistory] - Maximum number of messages to keep in history
-	 */
-	constructor({
-		url,
-		onMessage,
-		onOpen,
-		onClose,
-		onError,
-		debug = false,
-		reconnectOptions = undefined,
-		maxMessageHistory = 50
-	}: SocketConstructorArgs) {
-		// Validate WebSocket URL
-		if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
-			throw new Error(`Invalid WebSocket URL: "${url}". URL must start with ws:// or wss://`);
+		 * @param {(errorEvent: Event) => void} [options.onError] - Optional callback fired when an error occurs
+		 * @param {boolean} [options.debug=false] - Enable debug console logging
+		 * @param {ReconnectOptions} [options.reconnectOptions] - Auto-reconnection configuration
+		 * @param {number} [options.maxMessageHistory] - Maximum number of messages to keep in history
+		 */
+		constructor({
+			url,
+			onMessage,
+			onOpen,
+			onClose,
+			onError,
+			debug = false,
+			reconnectOptions = undefined,
+			maxMessageHistory = 50
+		}: SocketConstructorArgs) {
+			// Validate WebSocket URL
+			if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+				throw new Error(`Invalid WebSocket URL: "${url}". URL must start with ws:// or wss://`);
+			}
+
+			this.url = url;
+			this.onMessageEvent = onMessage;
+			this.onOpenProp = onOpen;
+			this.onCloseProp = onClose;
+			this.onErrorProp = onError;
+			this.debug = debug;
+			this.reconnectOptions = reconnectOptions;
+			this.maxMessageHistory = maxMessageHistory;
+			this.createSocket(url);
 		}
 
-		this.url = url;
-		this.onMessageEvent = onMessage;
-		this.onOpenProp = onOpen;
-		this.onCloseProp = onClose;
-		this.onErrorProp = onError;
-		this.debug = debug;
-		this.reconnectOptions = reconnectOptions;
-		this.maxMessageHistory = maxMessageHistory;
-		this.createSocket(url);
-	}
-
-	/**
-	 * Adds an event listener to the WebSocket connection.
-	 *
-	 * @param event - The event type to listen for
-	 * @param callback - The callback function to execute when the event occurs
-	 * @throws {Error} If the socket is not connected
-	 */
-	public addEventListener<K extends keyof WebSocketEventMap>(
-		event: K,
-		callback: (event: WebSocketEventMap[K]) => void
-	): void {
-		if (!this.socket) {
-			throw new Error(
-				`Cannot add event listener: Socket not connected. Current status: ${this.getReadyStateString()}`
-			);
-		}
-		this.socket.addEventListener(event, callback as EventListener);
-	}
-
-	/**
-	 * Removes an event listener from the WebSocket connection.
-	 *
-	 * @param event - The event type
-	 * @param callback - The callback function to remove
-	 */
-	public removeEventListener<K extends keyof WebSocketEventMap>(
-		event: K,
-		callback: (event: WebSocketEventMap[K]) => void
-	): void {
-		if (!this.socket) {
-			throw new Error(
-				`Cannot remove event listener: Socket not connected. Current status: ${this.getReadyStateString()}`
-			);
-		}
-		this.socket.removeEventListener(event, callback as EventListener);
-	}
-
-	/**
-	 * Sends a message through the WebSocket connection and stores it in the message history.
-	 * Supports text strings and binary data (ArrayBuffer, Blob, ArrayBufferView).
-	 *
-	 * @param {string | ArrayBuffer | Blob | ArrayBufferView} message - The message to send
-	 * @throws {Error} If the socket is not connected or not in OPEN state
-	 */
-	public sendMessage(message: string | ArrayBuffer | Blob | ArrayBufferView): void {
-		if (!this.socket) {
-			throw new Error(
-				`Cannot send message: Socket not connected. Current status: ${this.getReadyStateString()}`
-			);
-		}
-		if (this.socket.readyState !== WebSocket.OPEN) {
-			throw new Error(
-				`Cannot send message: Socket is in ${this.getReadyStateString()} state. Expected OPEN state.`
-			);
+		/**
+		 * Adds an event listener to the WebSocket connection.
+		 *
+		 * @param event - The event type to listen for
+		 * @param callback - The callback function to execute when the event occurs
+		 * @throws {Error} If the socket is not connected
+		 */
+		public addEventListener<K extends keyof WebSocketEventMap>(
+			event: K,
+			callback: (event: WebSocketEventMap[K]) => void
+		): void {
+			if (!this.socket) {
+				throw new Error(
+					`Cannot add event listener: Socket not connected. Current status: ${this.getReadyStateString()}`
+				);
+			}
+			this.socket.addEventListener(event, callback as EventListener);
 		}
 
-		this.socket.send(message);
-		this.sentMessages.unshift({
-			message,
-			timestamp: Date.now()
-		});
-
-		// Trim array to maintain FIFO - keep newest messages, remove oldest
-		if (this.maxMessageHistory > 0 && this.sentMessages.length > this.maxMessageHistory) {
-			this.sentMessages = this.sentMessages.slice(0, this.maxMessageHistory);
+		/**
+		 * Removes an event listener from the WebSocket connection.
+		 *
+		 * @param event - The event type
+		 * @param callback - The callback function to remove
+		 */
+		public removeEventListener<K extends keyof WebSocketEventMap>(
+			event: K,
+			callback: (event: WebSocketEventMap[K]) => void
+		): void {
+			if (!this.socket) {
+				throw new Error(
+					`Cannot remove event listener: Socket not connected. Current status: ${this.getReadyStateString()}`
+				);
+			}
+			this.socket.removeEventListener(event, callback as EventListener);
 		}
-	}
 
-	/**
-	 * Clears the sent messages history.
-	 */
-	public clearSentMessages(): void {
-		this.sentMessages = [];
-	}
+		/**
+		 * Sends a message through the WebSocket connection and stores it in the message history.
+		 * Supports text strings and binary data (ArrayBuffer, Blob, ArrayBufferView).
+		 *
+		 * @param {string | ArrayBuffer | Blob | ArrayBufferView} message - The message to send
+		 * @throws {Error} If the socket is not connected or not in OPEN state
+		 */
+		public sendMessage(message: string | ArrayBuffer | Blob | ArrayBufferView): void {
+			if (!this.socket) {
+				throw new Error(
+					`Cannot send message: Socket not connected. Current status: ${this.getReadyStateString()}`
+				);
+			}
+			if (this.socket.readyState !== WebSocket.OPEN) {
+				throw new Error(
+					`Cannot send message: Socket is in ${this.getReadyStateString()} state. Expected OPEN state.`
+				);
+			}
 
-	/**
-	 * Clears the received messages history.
-	 */
-	public clearReceivedMessages(): void {
-		this.receivedMessages = [];
-	}
+			this.socket.send(message);
+			this.sentMessages.unshift({
+				message,
+				timestamp: Date.now()
+			});
+
+			// Trim array to maintain FIFO - keep newest messages, remove oldest
+			if (this.maxMessageHistory > 0 && this.sentMessages.length > this.maxMessageHistory) {
+				this.sentMessages = this.sentMessages.slice(0, this.maxMessageHistory);
+			}
+		}
+
+		/**
+		 * Clears the sent messages history.
+		 */
+		public clearSentMessages(): void {
+			this.sentMessages = [];
+		}
+
+		/**
+		 * Clears the received messages history.
+		 */
+		public clearReceivedMessages(): void {
+			this.receivedMessages = [];
+		}
 
 		/**
 		 * Attempts to reconnect to the WebSocket server.
@@ -281,20 +283,20 @@
 		 * @param {string} url - The WebSocket server URL to connect to
 		 * @private
 		 */
-	private createSocket(url: string): void {
-		// Reset intentional close flag when creating/reconnecting
-		this.intentionalClose = false;
+		private createSocket(url: string): void {
+			// Reset intentional close flag when creating/reconnecting
+			this.intentionalClose = false;
 
-		if (this.socket) {
-			if (this.debug) {
-				console.log('⚠️ SvelteSocket already exists, closing existing connection');
+			if (this.socket) {
+				if (this.debug) {
+					console.log('⚠️ SvelteSocket already exists, closing existing connection');
+				}
+				// Close existing socket directly without calling removeSocket()
+				// to avoid setting intentionalClose flag and clearing state
+				this.socket.close();
 			}
-			// Close existing socket directly without calling removeSocket()
-			// to avoid setting intentionalClose flag and clearing state
-			this.socket.close();
-		}
-		this.connectionStatus = WebSocket.CONNECTING;
-		this.socket = new WebSocket(url);
+			this.connectionStatus = WebSocket.CONNECTING;
+			this.socket = new WebSocket(url);
 
 			this.socket.addEventListener('open', (event) => {
 				this.connectionStatus = WebSocket.OPEN;
@@ -316,21 +318,21 @@
 				this.onErrorProp?.(errorEvent);
 			});
 
-		this.socket.addEventListener('message', (messageEvent: MessageEvent) => {
-			if (this.debug) {
-				console.log('🔌 SvelteSocket message:', messageEvent.data);
-			}
-		this.receivedMessages.unshift({
-			message: messageEvent
-		});
+			this.socket.addEventListener('message', (messageEvent: MessageEvent) => {
+				if (this.debug) {
+					console.log('🔌 SvelteSocket message:', messageEvent.data);
+				}
+				this.receivedMessages.unshift({
+					message: messageEvent
+				});
 
-			// Trim array to maintain FIFO - keep newest messages, remove oldest
-			if (this.maxMessageHistory > 0 && this.receivedMessages.length > this.maxMessageHistory) {
-				this.receivedMessages = this.receivedMessages.slice(0, this.maxMessageHistory);
-			}
+				// Trim array to maintain FIFO - keep newest messages, remove oldest
+				if (this.maxMessageHistory > 0 && this.receivedMessages.length > this.maxMessageHistory) {
+					this.receivedMessages = this.receivedMessages.slice(0, this.maxMessageHistory);
+				}
 
-			this.onMessageEvent?.(messageEvent);
-		});
+				this.onMessageEvent?.(messageEvent);
+			});
 
 			if (this.debug) {
 				console.log('🔌 SvelteSocket created', this.socket);
@@ -338,12 +340,12 @@
 			return;
 		}
 
-	/**
-	 * Closes the WebSocket connection and prevents reconnection.
-	 */
-	public removeSocket(): void {
-		// Set flag to prevent reconnection when close event fires
-		this.intentionalClose = true;
+		/**
+		 * Closes the WebSocket connection and prevents reconnection.
+		 */
+		public removeSocket(): void {
+			// Set flag to prevent reconnection when close event fires
+			this.intentionalClose = true;
 
 			// Clear any pending reconnection timeout
 			if (this.reconnectTimeoutId) {
