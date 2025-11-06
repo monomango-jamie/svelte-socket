@@ -93,6 +93,7 @@ new SvelteSocket(options: SocketConstructorArgs)
 | `onError`          | `(event: Event) => void`        | No       | Called on error                           |
 | `debug`            | `boolean`                       | No       | Enable console logging (default: `false`) |
 | `reconnectOptions` | `ReconnectOptions`              | No       | Auto-reconnection config                  |
+| `maxMessageHistory` | `number`                       | No       | Max messages to keep in history (default: `50`). Set to `0` for unlimited |
 
 **ReconnectOptions:**
 
@@ -108,6 +109,7 @@ new SvelteSocket(options: SocketConstructorArgs)
 const socket = new SvelteSocket({
 	url: 'ws://localhost:8080',
 	debug: true,
+	maxMessageHistory: 100, // Keep last 100 messages (default: 50)
 	reconnectOptions: {
 		enabled: true,
 		delay: 1000,
@@ -124,8 +126,9 @@ const socket = new SvelteSocket({
 | Property           | Type                                          | Description                                                                 |
 | ------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
 | `connectionStatus` | `WebSocket['readyState']`                     | Connection state: `0` (CONNECTING), `1` (OPEN), `2` (CLOSING), `3` (CLOSED) |
-| `sentMessages`     | `Array<{message: string, timestamp: number}>` | Sent message history (newest first, via `unshift`)                                         |
-| `receivedMessages` | `Array<{message: MessageEvent}>`              | Received message history (newest first, via `unshift`)                                     |
+| `sentMessages`     | `Array<{message: string, timestamp: number}>` | Sent message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
+| `receivedMessages` | `Array<{message: MessageEvent}>`              | Received message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
+| `maxMessageHistory` | `number`                                     | Maximum number of messages to keep in history (default: `50`, readonly)     |
 
 **Example:**
 

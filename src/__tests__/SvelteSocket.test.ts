@@ -406,4 +406,69 @@ describe('SvelteSocket', () => {
 			expect(socket.receivedMessages[0].message.data).toBe('test message');
 		});
 	});
+
+	describe('maxMessageHistory', () => {
+		it('should default to 50 messages', async () => {
+			socket = new SvelteSocket({ url: testUrl });
+			expect(socket.maxMessageHistory).toBe(50);
+		});
+
+		it('should allow custom maxMessageHistory', async () => {
+			socket = new SvelteSocket({ url: testUrl, maxMessageHistory: 10 });
+			expect(socket.maxMessageHistory).toBe(10);
+		});
+
+		it('should trim sent messages to maxMessageHistory (FIFO)', async () => {
+			socket = new SvelteSocket({ url: testUrl, maxMessageHistory: 3 });
+			await vi.runAllTimersAsync();
+
+			// Send 5 messages
+			socket.sendMessage('Message 1');
+			socket.sendMessage('Message 2');
+			socket.sendMessage('Message 3');
+			socket.sendMessage('Message 4');
+			socket.sendMessage('Message 5');
+
+			// Should only keep the 3 most recent (newest first)
+			expect(socket.sentMessages).toHaveLength(3);
+			expect(socket.sentMessages[0].message).toBe('Message 5'); // newest
+			expect(socket.sentMessages[1].message).toBe('Message 4');
+			expect(socket.sentMessages[2].message).toBe('Message 3');
+			// Message 1 and 2 should be removed (oldest)
+		});
+
+		it('should trim received messages to maxMessageHistory (FIFO)', async () => {
+			socket = new SvelteSocket({ url: testUrl, maxMessageHistory: 3 });
+			await vi.runAllTimersAsync();
+
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			
+			// Receive 5 messages
+			mockSocket.dispatchEvent({ type: 'message', data: 'Message 1' });
+			mockSocket.dispatchEvent({ type: 'message', data: 'Message 2' });
+			mockSocket.dispatchEvent({ type: 'message', data: 'Message 3' });
+			mockSocket.dispatchEvent({ type: 'message', data: 'Message 4' });
+			mockSocket.dispatchEvent({ type: 'message', data: 'Message 5' });
+
+			// Should only keep the 3 most recent (newest first)
+			expect(socket.receivedMessages).toHaveLength(3);
+			expect(socket.receivedMessages[0].message.data).toBe('Message 5'); // newest
+			expect(socket.receivedMessages[1].message.data).toBe('Message 4');
+			expect(socket.receivedMessages[2].message.data).toBe('Message 3');
+			// Message 1 and 2 should be removed (oldest)
+		});
+
+		it('should allow unlimited messages when maxMessageHistory is 0', async () => {
+			socket = new SvelteSocket({ url: testUrl, maxMessageHistory: 0 });
+			await vi.runAllTimersAsync();
+
+			// Send many messages
+			for (let i = 0; i < 100; i++) {
+				socket.sendMessage(`Message ${i}`);
+			}
+
+			// Should keep all messages since limit is 0 (unlimited)
+			expect(socket.sentMessages.length).toBeGreaterThan(50);
+		});
+	});
 });

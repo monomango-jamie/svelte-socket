@@ -31,6 +31,9 @@
 	const isConnected = $derived(socket.connectionStatus === WebSocket.OPEN);
 	const sentMessages = $derived(socket.sentMessages);
 	const receivedMessages = $derived(socket.receivedMessages);
+	const maxMessageHistory = socket.maxMessageHistory;
+	const sentAtLimit = $derived(sentMessages.length >= maxMessageHistory && maxMessageHistory > 0);
+	const receivedAtLimit = $derived(receivedMessages.length >= maxMessageHistory && maxMessageHistory > 0);
 
 	function formatTimestamp(timestamp: number): string {
 		const date = new Date(timestamp);
@@ -98,11 +101,25 @@
 			</div>
 			<div class="flex flex-col">
 				<span class="mb-1 text-xs text-slate-500">Messages Sent</span>
-				<span class="font-mono text-lg text-emerald-400">{sentMessages.length}</span>
+				<span 
+					class="font-mono text-lg"
+					class:text-emerald-400={!sentAtLimit}
+					class:text-red-400={sentAtLimit}
+					title={sentAtLimit ? `Limit reached (${maxMessageHistory}). Oldest messages are being dropped.` : ''}
+				>
+					{sentMessages.length}{sentAtLimit ? ` ⚠️` : ''}
+				</span>
 			</div>
 			<div class="flex flex-col">
 				<span class="mb-1 text-xs text-slate-500">Messages Received</span>
-				<span class="font-mono text-lg text-blue-400">{receivedMessages.length}</span>
+				<span 
+					class="font-mono text-lg"
+					class:text-blue-400={!receivedAtLimit}
+					class:text-red-400={receivedAtLimit}
+					title={receivedAtLimit ? `Limit reached (${maxMessageHistory}). Oldest messages are being dropped.` : ''}
+				>
+					{receivedMessages.length}{receivedAtLimit ? ` ⚠️` : ''}
+				</span>
 			</div>
 		</div>
 	</div>

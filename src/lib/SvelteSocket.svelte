@@ -42,12 +42,15 @@
 		/** Optional callback fired when a WebSocket error occurs */
 		onError?: (errorEvent: Event) => void;
 
-		/** Optional flag to enable debug console logging. Default: false */
-		debug?: boolean;
+	/** Optional flag to enable debug console logging. Default: false */
+	debug?: boolean;
 
-		/** Optional configuration for automatic reconnection */
-		reconnectOptions?: ReconnectOptions;
-	}
+	/** Optional configuration for automatic reconnection */
+	reconnectOptions?: ReconnectOptions;
+
+	/** Optional maximum number of messages to keep in history (sent and received). Default: 50 */
+	maxMessageHistory?: number;
+}
 
 	/**
 	 * A reactive WebSocket wrapper using Svelte 5 runes.
@@ -94,17 +97,18 @@
 		private onOpenProp?: (openEvent: Event) => void;
 		private onCloseProp?: (closeEvent: CloseEvent) => void;
 		private onErrorProp?: (errorEvent: Event) => void;
-		public connectionStatus = $state<WebSocket['readyState']>(WebSocket.CLOSED);
-		public sentMessages = $state<Array<{ message: string; timestamp: number }>>([]);
-		public receivedMessages = $state<Array<{ message: MessageEvent }>>([]);
-		private debug: boolean;
-		private reconnectOptions?: ReconnectOptions;
+	public connectionStatus = $state<WebSocket['readyState']>(WebSocket.CLOSED);
+	public sentMessages = $state<Array<{ message: string; timestamp: number }>>([]);
+	public receivedMessages = $state<Array<{ message: MessageEvent }>>([]);
+	private debug: boolean;
+	private reconnectOptions?: ReconnectOptions;
+	public readonly maxMessageHistory: number;
 
-		// Reconnection state
-		private url: string = '';
-		private reconnectAttempts = $state(0);
-		private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
-		private intentionalClose = false; // Flag to prevent reconnection on manual close
+	// Reconnection state
+	private url: string = '';
+	private reconnectAttempts = $state(0);
+	private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+	private intentionalClose = false; // Flag to prevent reconnection on manual close
 		/**
 		 * Creates a new SvelteSocket instance and establishes the WebSocket connection.
 		 *
@@ -113,10 +117,11 @@
 		 * @param {(messageEvent: MessageEvent) => void} [options.onMessage] - Optional callback fired when a message is received
 		 * @param {(openEvent: Event) => void} [options.onOpen] - Optional callback fired when the connection opens
 		 * @param {(closeEvent: CloseEvent) => void} [options.onClose] - Optional callback fired when the connection closes
-		 * @param {(errorEvent: Event) => void} [options.onError] - Optional callback fired when an error occurs
-		 * @param {boolean} [options.debug=false] - Enable debug console logging
-		 * @param {ReconnectOptions} [options.reconnectOptions] - Auto-reconnection configuration
-		 */
+	 * @param {(errorEvent: Event) => void} [options.onError] - Optional callback fired when an error occurs
+	 * @param {boolean} [options.debug=false] - Enable debug console logging
+	 * @param {ReconnectOptions} [options.reconnectOptions] - Auto-reconnection configuration
+	 * @param {number} [options.maxMessageHistory] - Maximum number of messages to keep in history
+	 */
 	constructor({
 		url,
 		onMessage,
@@ -124,7 +129,8 @@
 		onClose,
 		onError,
 		debug = false,
-		reconnectOptions = undefined
+		reconnectOptions = undefined,
+		maxMessageHistory = 50
 	}: SocketConstructorArgs) {
 		// Validate WebSocket URL
 		if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
@@ -138,6 +144,7 @@
 		this.onErrorProp = onError;
 		this.debug = debug;
 		this.reconnectOptions = reconnectOptions;
+		this.maxMessageHistory = maxMessageHistory;
 		this.createSocket(url);
 	}
 
@@ -179,20 +186,25 @@
 		 * @param {string} message - The message to send
 		 * @throws {Error} If the socket is not connected or not in OPEN state
 		 */
-		public sendMessage(message: string): void {
-			if (!this.socket) {
-				throw new Error('Socket not connected');
-			}
-			if (this.socket.readyState !== WebSocket.OPEN) {
-				throw new Error('Socket is not in OPEN state');
-			}
-
-			this.socket.send(message);
-			this.sentMessages.unshift({
-				message,
-				timestamp: Date.now()
-			});
+	public sendMessage(message: string): void {
+		if (!this.socket) {
+			throw new Error('Socket not connected');
 		}
+		if (this.socket.readyState !== WebSocket.OPEN) {
+			throw new Error('Socket is not in OPEN state');
+		}
+
+		this.socket.send(message);
+		this.sentMessages.unshift({
+			message,
+			timestamp: Date.now()
+		});
+
+		// Trim array to maintain FIFO - keep newest messages, remove oldest
+		if (this.maxMessageHistory > 0 && this.sentMessages.length > this.maxMessageHistory) {
+			this.sentMessages = this.sentMessages.slice(0, this.maxMessageHistory);
+		}
+	}
 
 	/**
 	 * Clears the sent messages history.
@@ -276,15 +288,21 @@
 				this.onErrorProp?.(errorEvent);
 			});
 
-			this.socket.addEventListener('message', (messageEvent: MessageEvent) => {
-				if (this.debug) {
-					console.log('🔌 SvelteSocket message:', messageEvent.data);
-				}
-				this.receivedMessages.unshift({
-					message: messageEvent
-				});
-				this.onMessageEvent?.(messageEvent);
+		this.socket.addEventListener('message', (messageEvent: MessageEvent) => {
+			if (this.debug) {
+				console.log('🔌 SvelteSocket message:', messageEvent.data);
+			}
+			this.receivedMessages.unshift({
+				message: messageEvent
 			});
+
+			// Trim array to maintain FIFO - keep newest messages, remove oldest
+			if (this.maxMessageHistory > 0 && this.receivedMessages.length > this.maxMessageHistory) {
+				this.receivedMessages = this.receivedMessages.slice(0, this.maxMessageHistory);
+			}
+
+			this.onMessageEvent?.(messageEvent);
+		});
 
 			if (this.debug) {
 				console.log('🔌 SvelteSocket created', this.socket);
