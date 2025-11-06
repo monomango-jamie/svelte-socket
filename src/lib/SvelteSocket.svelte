@@ -109,6 +109,24 @@
 	private reconnectAttempts = $state(0);
 	private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private intentionalClose = false; // Flag to prevent reconnection on manual close
+
+	/**
+	 * Helper method to get a human-readable connection status string
+	 */
+	private getReadyStateString(): string {
+		switch (this.connectionStatus) {
+			case WebSocket.CONNECTING:
+				return 'CONNECTING';
+			case WebSocket.OPEN:
+				return 'OPEN';
+			case WebSocket.CLOSING:
+				return 'CLOSING';
+			case WebSocket.CLOSED:
+				return 'CLOSED';
+			default:
+				return 'UNKNOWN';
+		}
+	}
 		/**
 		 * Creates a new SvelteSocket instance and establishes the WebSocket connection.
 		 *
@@ -160,7 +178,9 @@
 		callback: (event: WebSocketEventMap[K]) => void
 	): void {
 		if (!this.socket) {
-			throw new Error('Socket not connected');
+			throw new Error(
+				`Cannot add event listener: Socket not connected. Current status: ${this.getReadyStateString()}`
+			);
 		}
 		this.socket.addEventListener(event, callback as EventListener);
 	}
@@ -175,9 +195,12 @@
 		event: K,
 		callback: (event: WebSocketEventMap[K]) => void
 	): void {
-		if (this.socket) {
-			this.socket.removeEventListener(event, callback as EventListener);
+		if (!this.socket) {
+			throw new Error(
+				`Cannot remove event listener: Socket not connected. Current status: ${this.getReadyStateString()}`
+			);
 		}
+		this.socket.removeEventListener(event, callback as EventListener);
 	}
 
 	/**
@@ -189,10 +212,14 @@
 	 */
 	public sendMessage(message: string | ArrayBuffer | Blob | ArrayBufferView): void {
 		if (!this.socket) {
-			throw new Error('Socket not connected');
+			throw new Error(
+				`Cannot send message: Socket not connected. Current status: ${this.getReadyStateString()}`
+			);
 		}
 		if (this.socket.readyState !== WebSocket.OPEN) {
-			throw new Error('Socket is not in OPEN state');
+			throw new Error(
+				`Cannot send message: Socket is in ${this.getReadyStateString()} state. Expected OPEN state.`
+			);
 		}
 
 		this.socket.send(message);

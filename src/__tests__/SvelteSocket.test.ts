@@ -129,7 +129,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl, onClose });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.close();
 
 			expect(onClose).toHaveBeenCalled();
@@ -140,7 +140,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl, onError });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.dispatchEvent({ type: 'error' });
 
 			expect(onError).toHaveBeenCalled();
@@ -151,7 +151,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl, onMessage });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.dispatchEvent({ type: 'message', data: 'test' });
 
 			expect(onMessage).toHaveBeenCalled();
@@ -184,14 +184,14 @@ describe('SvelteSocket', () => {
 			expect(socket.connectionStatus).toBe(WebSocket.OPEN);
 
 			socket.removeSocket();
-			expect(socket['socket']).toBeUndefined();
+			expect(socket.socket).toBeUndefined();
 		});
 
 		it('should handle closing non-existent socket gracefully', () => {
 			socket = new SvelteSocket({ url: testUrl });
 			socket.removeSocket();
 			socket.removeSocket(); // Should not throw
-			expect(socket['socket']).toBeUndefined();
+			expect(socket.socket).toBeUndefined();
 		});
 	});
 
@@ -203,20 +203,20 @@ describe('SvelteSocket', () => {
 			const messageHandler = vi.fn();
 			socket.addEventListener('message', messageHandler);
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.dispatchEvent({ type: 'message', data: 'test' });
 
 			expect(messageHandler).toHaveBeenCalled();
 		});
 
-		it('should throw error when socket is not connected', () => {
-			socket = new SvelteSocket({ url: testUrl });
-			socket.removeSocket();
+	it('should throw error when socket is not connected', () => {
+		socket = new SvelteSocket({ url: testUrl });
+		socket.socket = undefined;
 
-			expect(() => {
-				socket.addEventListener('message', () => {});
-			}).toThrow('Socket not connected');
-		});
+		expect(() => {
+			socket.addEventListener('message', () => {});
+		}).toThrow(/Cannot add event listener: Socket not connected/);
+	});
 	});
 
 	describe('removeEventListener', () => {
@@ -228,7 +228,7 @@ describe('SvelteSocket', () => {
 			socket.addEventListener('message', messageHandler);
 			socket.removeEventListener('message', messageHandler);
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.dispatchEvent({ type: 'message', data: 'test' });
 
 			expect(messageHandler).not.toHaveBeenCalled();
@@ -240,7 +240,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			const sendSpy = vi.spyOn(mockSocket, 'send');
 
 			socket.sendMessage('Hello, World!');
@@ -265,7 +265,7 @@ describe('SvelteSocket', () => {
 		await vi.runAllTimersAsync();
 
 		const buffer = new ArrayBuffer(8);
-		const mockSocket = socket['socket'] as unknown as MockWebSocket;
+		const mockSocket = socket.socket as unknown as MockWebSocket;
 		mockSocket.send = vi.fn(); // Reset the spy
 
 		socket.sendMessage(buffer);
@@ -279,7 +279,7 @@ describe('SvelteSocket', () => {
 		await vi.runAllTimersAsync();
 
 		const blob = new Blob(['test'], { type: 'text/plain' });
-		const mockSocket = socket['socket'] as unknown as MockWebSocket;
+		const mockSocket = socket.socket as unknown as MockWebSocket;
 		mockSocket.send = vi.fn(); // Reset the spy
 
 		socket.sendMessage(blob);
@@ -293,7 +293,7 @@ describe('SvelteSocket', () => {
 		await vi.runAllTimersAsync();
 
 		const uint8 = new Uint8Array([1, 2, 3, 4]);
-		const mockSocket = socket['socket'] as unknown as MockWebSocket;
+		const mockSocket = socket.socket as unknown as MockWebSocket;
 		mockSocket.send = vi.fn(); // Reset the spy
 
 		socket.sendMessage(uint8);
@@ -306,18 +306,24 @@ describe('SvelteSocket', () => {
 		socket = new SvelteSocket({ url: testUrl });
 		socket.removeSocket();
 
-			expect(() => {
-				socket.sendMessage('Test');
-			}).toThrow('Socket not connected');
+		expect(() => {
+			socket.sendMessage('Test');
+		}).toThrow(/Cannot send message: Socket not connected/);
 		});
 
-		it('should throw error when socket is not in OPEN state', () => {
-			socket = new SvelteSocket({ url: testUrl });
-
-			expect(() => {
-				socket.sendMessage('Test');
-			}).toThrow('Socket is not in OPEN state');
-		});
+	it('should throw error when socket is not in OPEN state', async () => {
+		socket = new SvelteSocket({ url: testUrl });
+		await vi.runAllTimersAsync();
+		
+		// Temporarily set socket to CONNECTING state
+		const mockSocket = socket.socket as any;
+		mockSocket.readyState = WebSocket.CONNECTING;
+		socket.connectionStatus = WebSocket.CONNECTING;
+		
+		expect(() => {
+			socket.sendMessage('Test');
+		}).toThrow(/Cannot send message: Socket is in CONNECTING state/);
+	});
 	});
 
 	describe('clearSentMessages', () => {
@@ -339,7 +345,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.dispatchEvent({ type: 'message', data: 'Message 1' });
 			mockSocket.dispatchEvent({ type: 'message', data: 'Message 2' });
 			expect(socket.receivedMessages).toHaveLength(2);
@@ -354,7 +360,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.close();
 
 			await vi.runAllTimersAsync();
@@ -370,7 +376,7 @@ describe('SvelteSocket', () => {
 			});
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.close();
 
 			// Should schedule reconnection
@@ -389,7 +395,7 @@ describe('SvelteSocket', () => {
 
 			// Simulate multiple disconnections
 			for (let i = 0; i < 3; i++) {
-				const mockSocket = socket['socket'] as unknown as MockWebSocket;
+				const mockSocket = socket.socket as unknown as MockWebSocket;
 				if (mockSocket) {
 					mockSocket.close();
 					await vi.advanceTimersByTimeAsync(100);
@@ -409,7 +415,7 @@ describe('SvelteSocket', () => {
 			await vi.runAllTimersAsync();
 
 			// Disconnect and reconnect
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.close();
 			await vi.advanceTimersByTimeAsync(100);
 			await vi.runAllTimersAsync();
@@ -436,7 +442,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			mockSocket.dispatchEvent({
 				type: 'message',
 				data: 'test message',
@@ -483,7 +489,7 @@ describe('SvelteSocket', () => {
 			socket = new SvelteSocket({ url: testUrl, maxMessageHistory: 3 });
 			await vi.runAllTimersAsync();
 
-			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			const mockSocket = socket.socket as unknown as MockWebSocket;
 			
 			// Receive 5 messages
 			mockSocket.dispatchEvent({ type: 'message', data: 'Message 1' });
