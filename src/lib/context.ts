@@ -2,9 +2,10 @@ import { getContext, setContext } from 'svelte';
 import type { SvelteSocket } from './SvelteSocket.svelte';
 
 /**
- * The context key used to store and retrieve the SvelteSocket instance
+ * The context key used to store and retrieve the SvelteSocket instance.
+ * Using a Symbol ensures uniqueness and prevents key collisions.
  */
-export const SOCKET_CONTEXT_KEY = 'svelte-socket:socket';
+export const SOCKET_CONTEXT_KEY = Symbol('svelte-socket:socket');
 
 /**
  * Sets the SvelteSocket instance in Svelte's context
