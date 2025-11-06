@@ -229,18 +229,20 @@
 		 * @param {string} url - The WebSocket server URL to connect to
 		 * @private
 		 */
-		private createSocket(url: string): void {
-			// Reset intentional close flag when creating/reconnecting
-			this.intentionalClose = false;
+	private createSocket(url: string): void {
+		// Reset intentional close flag when creating/reconnecting
+		this.intentionalClose = false;
 
-			if (this.socket) {
-				if (this.debug) {
-					console.log('⚠️ SvelteSocket already exists, closing existing connection');
-				}
-				this.removeSocket();
+		if (this.socket) {
+			if (this.debug) {
+				console.log('⚠️ SvelteSocket already exists, closing existing connection');
 			}
-			this.connectionStatus = WebSocket.CONNECTING;
-			this.socket = new WebSocket(url);
+			// Close existing socket directly without calling removeSocket()
+			// to avoid setting intentionalClose flag and clearing state
+			this.socket.close();
+		}
+		this.connectionStatus = WebSocket.CONNECTING;
+		this.socket = new WebSocket(url);
 
 			this.socket.addEventListener('open', (event) => {
 				this.connectionStatus = WebSocket.OPEN;
@@ -278,12 +280,12 @@
 			return;
 		}
 
-		/**
-		 * Closes the WebSocket connection and prevents reconnection.
-		 */
-		public removeSocket(): void {
-			// Set flag to prevent reconnection when close event fires
-			this.intentionalClose = true;
+	/**
+	 * Closes the WebSocket connection and prevents reconnection.
+	 */
+	public removeSocket(): void {
+		// Set flag to prevent reconnection when close event fires
+		this.intentionalClose = true;
 
 			// Clear any pending reconnection timeout
 			if (this.reconnectTimeoutId) {
