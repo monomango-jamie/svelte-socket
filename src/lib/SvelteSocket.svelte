@@ -77,17 +77,18 @@
 	 * });
 	 * ```
 	 */
+	
 	export class SvelteSocket {
 		public socket = $state<WebSocket>();
-		private onMessageEvent = $state<((messageEvent: MessageEvent) => void) | undefined>(undefined);
-		private onOpenProp = $state<((openEvent: Event) => void) | undefined>(undefined);
-		private onCloseProp = $state<((closeEvent: CloseEvent) => void) | undefined>(undefined);
-		private onErrorProp = $state<((errorEvent: Event) => void) | undefined>(undefined);
+		private onMessageEvent?: (messageEvent: MessageEvent) => void;
+		private onOpenProp?: (openEvent: Event) => void;
+		private onCloseProp?: (closeEvent: CloseEvent) => void;
+		private onErrorProp?: (errorEvent: Event) => void;
 		public connectionStatus = $state<WebSocket['readyState']>(WebSocket.CLOSED);
 		public sentMessages = $state<Array<{ message: string; timestamp: number }>>([]);
 		public receivedMessages = $state<Array<{ message: MessageEvent }>>([]);
-		private debug = $state(false);
-		private reconnectOptions = $state<ReconnectOptions | undefined>(undefined);
+		private debug: boolean;
+		private reconnectOptions?: ReconnectOptions;
 
 		// Reconnection state
 		private url: string = '';
