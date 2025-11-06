@@ -194,12 +194,19 @@
 			});
 		}
 
-		/**
-		 * Clears the sent messages history.
-		 */
-		public clearSentMessages(): void {
-			this.sentMessages = [];
-		}
+	/**
+	 * Clears the sent messages history.
+	 */
+	public clearSentMessages(): void {
+		this.sentMessages = [];
+	}
+
+	/**
+	 * Clears the received messages history.
+	 */
+	public clearReceivedMessages(): void {
+		this.receivedMessages = [];
+	}
 
 		/**
 		 * Attempts to reconnect to the WebSocket server.

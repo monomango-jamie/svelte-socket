@@ -113,14 +113,14 @@
 			<h3 class="text-sm font-semibold tracking-wide text-slate-400 uppercase">
 				Received Messages
 			</h3>
-			{#if receivedMessages.length > 0}
-				<button
-					onclick={() => (socket.receivedMessages = [])}
-					class="rounded border border-blue-500/30 bg-blue-500/20 px-2 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-500/30"
-				>
-					Clear
-				</button>
-			{/if}
+		{#if receivedMessages.length > 0}
+			<button
+				onclick={() => socket.clearReceivedMessages()}
+				class="rounded border border-blue-500/30 bg-blue-500/20 px-2 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-500/30"
+			>
+				Clear
+			</button>
+		{/if}
 		</div>
 
 		{#if receivedMessages.length === 0}

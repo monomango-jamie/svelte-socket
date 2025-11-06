@@ -223,6 +223,18 @@ Clears `sentMessages` array.
 socket.clearSentMessages();
 ```
 
+##### `clearReceivedMessages()`
+
+```typescript
+clearReceivedMessages(): void
+```
+
+Clears `receivedMessages` array.
+
+```javascript
+socket.clearReceivedMessages();
+```
+
 ##### `removeSocket()`
 
 ```typescript

@@ -292,6 +292,21 @@ describe('SvelteSocket', () => {
 		});
 	});
 
+	describe('clearReceivedMessages', () => {
+		it('should clear all received messages', async () => {
+			socket = new SvelteSocket({ url: testUrl });
+			await vi.runAllTimersAsync();
+
+			const mockSocket = socket['socket'] as unknown as MockWebSocket;
+			mockSocket.dispatchEvent({ type: 'message', data: 'Message 1' });
+			mockSocket.dispatchEvent({ type: 'message', data: 'Message 2' });
+			expect(socket.receivedMessages).toHaveLength(2);
+
+			socket.clearReceivedMessages();
+			expect(socket.receivedMessages).toEqual([]);
+		});
+	});
+
 	describe('Reconnection', () => {
 		it('should not reconnect when reconnection is disabled', async () => {
 			socket = new SvelteSocket({ url: testUrl });
