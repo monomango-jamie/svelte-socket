@@ -320,9 +320,9 @@
 			if (this.debug) {
 				console.log('🔌 SvelteSocket message:', messageEvent.data);
 			}
-			this.receivedMessages.unshift({
-				message: messageEvent
-			});
+		this.receivedMessages.unshift({
+			message: messageEvent
+		});
 
 			// Trim array to maintain FIFO - keep newest messages, remove oldest
 			if (this.maxMessageHistory > 0 && this.receivedMessages.length > this.maxMessageHistory) {

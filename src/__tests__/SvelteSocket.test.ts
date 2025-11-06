@@ -519,4 +519,201 @@ describe('SvelteSocket', () => {
 			expect(socket.sentMessages.length).toBeGreaterThan(50);
 		});
 	});
+
+	describe('Additional Edge Cases', () => {
+		describe('Invalid URLs', () => {
+			it('should throw for http:// URLs', () => {
+				expect(() => {
+					new SvelteSocket({ url: 'http://localhost:8080' });
+				}).toThrow(/Invalid WebSocket URL/);
+			});
+
+			it('should throw for https:// URLs', () => {
+				expect(() => {
+					new SvelteSocket({ url: 'https://localhost:8080' });
+				}).toThrow(/Invalid WebSocket URL/);
+			});
+
+			it('should throw for URLs without protocol', () => {
+				expect(() => {
+					new SvelteSocket({ url: 'localhost:8080' });
+				}).toThrow(/Invalid WebSocket URL/);
+			});
+
+			it('should throw for empty URL', () => {
+				expect(() => {
+					new SvelteSocket({ url: '' });
+				}).toThrow(/Invalid WebSocket URL/);
+			});
+		});
+
+		describe('Multiple Event Listeners', () => {
+			it('should support multiple message listeners', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				const listener1 = vi.fn();
+				const listener2 = vi.fn();
+				const listener3 = vi.fn();
+
+				socket.addEventListener('message', listener1);
+				socket.addEventListener('message', listener2);
+				socket.addEventListener('message', listener3);
+
+				const mockSocket = socket.socket as unknown as MockWebSocket;
+				mockSocket.dispatchEvent({ type: 'message', data: 'test' });
+
+				expect(listener1).toHaveBeenCalledTimes(1);
+				expect(listener2).toHaveBeenCalledTimes(1);
+				expect(listener3).toHaveBeenCalledTimes(1);
+			});
+
+			it('should support removing individual listeners', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				const listener1 = vi.fn();
+				const listener2 = vi.fn();
+
+				socket.addEventListener('message', listener1);
+				socket.addEventListener('message', listener2);
+
+				// Remove only listener1
+				socket.removeEventListener('message', listener1);
+
+				const mockSocket = socket.socket as unknown as MockWebSocket;
+				mockSocket.dispatchEvent({ type: 'message', data: 'test' });
+
+				expect(listener1).not.toHaveBeenCalled();
+				expect(listener2).toHaveBeenCalledTimes(1);
+			});
+
+			it('should support different event types', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				const messageListener = vi.fn();
+				const closeListener = vi.fn();
+				const errorListener = vi.fn();
+
+				socket.addEventListener('message', messageListener);
+				socket.addEventListener('close', closeListener);
+				socket.addEventListener('error', errorListener);
+
+				const mockSocket = socket.socket as unknown as MockWebSocket;
+				mockSocket.dispatchEvent({ type: 'message', data: 'test' });
+				mockSocket.dispatchEvent({ type: 'error' });
+
+				expect(messageListener).toHaveBeenCalledTimes(1);
+				expect(errorListener).toHaveBeenCalledTimes(1);
+				expect(closeListener).not.toHaveBeenCalled();
+			});
+		});
+
+		describe('Concurrent Operations', () => {
+			it('should handle rapid successive message sends', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				// Send multiple messages in quick succession
+				for (let i = 0; i < 10; i++) {
+					socket.sendMessage(`Message ${i}`);
+				}
+
+				expect(socket.sentMessages).toHaveLength(10);
+				// Verify messages are in correct order (newest first)
+				expect(socket.sentMessages[0].message).toBe('Message 9');
+				expect(socket.sentMessages[9].message).toBe('Message 0');
+			});
+
+			it('should handle rapid successive message receives', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				const mockSocket = socket.socket as unknown as MockWebSocket;
+
+				// Receive multiple messages in quick succession
+				for (let i = 0; i < 10; i++) {
+					mockSocket.dispatchEvent({ type: 'message', data: `Message ${i}` });
+				}
+
+				expect(socket.receivedMessages).toHaveLength(10);
+				// Verify messages are in correct order (newest first)
+				expect(socket.receivedMessages[0].message.data).toBe('Message 9');
+				expect(socket.receivedMessages[9].message.data).toBe('Message 0');
+			});
+
+			it('should handle mixed send/receive operations', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				const mockSocket = socket.socket as unknown as MockWebSocket;
+
+				// Mix of sending and receiving
+				socket.sendMessage('Sent 1');
+				mockSocket.dispatchEvent({ type: 'message', data: 'Received 1' });
+				socket.sendMessage('Sent 2');
+				mockSocket.dispatchEvent({ type: 'message', data: 'Received 2' });
+
+				expect(socket.sentMessages).toHaveLength(2);
+				expect(socket.receivedMessages).toHaveLength(2);
+				expect(socket.sentMessages[0].message).toBe('Sent 2');
+				expect(socket.receivedMessages[0].message.data).toBe('Received 2');
+			});
+
+			it('should handle close and immediate reconnect', async () => {
+				socket = new SvelteSocket({
+					url: testUrl,
+					reconnectOptions: {
+						enabled: true,
+						delay: 100,
+						maxAttempts: 3
+					}
+				});
+				await vi.runAllTimersAsync();
+
+				const mockSocket = socket.socket as unknown as MockWebSocket;
+				mockSocket.readyState = WebSocket.CLOSED;
+				mockSocket.dispatchEvent({ type: 'close', code: 1006 });
+
+				// Should trigger reconnection
+				await vi.runAllTimersAsync();
+
+				// Connection should be re-established
+				expect(socket.connectionStatus).toBe(WebSocket.OPEN);
+			});
+		});
+
+		describe('Message IDs', () => {
+			it('should assign unique IDs to sent messages', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				socket.sendMessage('Message 1');
+				socket.sendMessage('Message 2');
+				socket.sendMessage('Message 3');
+
+				const ids = socket.sentMessages.map(m => m.id);
+				const uniqueIds = new Set(ids);
+
+				expect(uniqueIds.size).toBe(3);
+				expect(ids).toEqual([2, 1, 0]); // Newest first
+			});
+
+			it('should assign unique IDs to received messages', async () => {
+				socket = new SvelteSocket({ url: testUrl });
+				await vi.runAllTimersAsync();
+
+				const mockSocket = socket.socket as unknown as MockWebSocket;
+				mockSocket.dispatchEvent({ type: 'message', data: 'Message 1' });
+				mockSocket.dispatchEvent({ type: 'message', data: 'Message 2' });
+				mockSocket.dispatchEvent({ type: 'message', data: 'Message 3' });
+
+				const ids = socket.receivedMessages.map(m => m.id);
+				const uniqueIds = new Set(ids);
+
+				expect(uniqueIds.size).toBe(3);
+			});
+		});
+	});
 });
