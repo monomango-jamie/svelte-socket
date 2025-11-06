@@ -46,7 +46,7 @@ npm install svelte-socket
 	socket.sendMessage('text');
 </script>
 
-<SocketProvider {socket}>
+<SocketProvider {svelteSocket}>
     {@render children()}
 </SocketProvider >
 ```
@@ -124,8 +124,8 @@ const socket = new SvelteSocket({
 | Property           | Type                                          | Description                                                                 |
 | ------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
 | `connectionStatus` | `WebSocket['readyState']`                     | Connection state: `0` (CONNECTING), `1` (OPEN), `2` (CLOSING), `3` (CLOSED) |
-| `sentMessages`     | `Array<{message: string, timestamp: number}>` | Sent message history (newest first)                                         |
-| `receivedMessages` | `Array<{message: MessageEvent}>`              | Received message history (newest first)                                     |
+| `sentMessages`     | `Array<{message: string, timestamp: number}>` | Sent message history (newest first, via `unshift`)                                         |
+| `receivedMessages` | `Array<{message: MessageEvent}>`              | Received message history (newest first, via `unshift`)                                     |
 
 **Example:**
 
@@ -161,17 +161,21 @@ const socket = new SvelteSocket({
 ```typescript
 addEventListener(
 	event: 'message' | 'close' | 'open' | 'error',
-	callback: (event: Event) => void
+	callback: (event: MessageEvent | CloseEvent | Event) => void
 ): void
 ```
 
-Adds event listener to WebSocket.
+Adds event listener to WebSocket. The callback type is automatically inferred based on the event type:
+- `'message'` → `(event: MessageEvent) => void`
+- `'close'` → `(event: CloseEvent) => void`
+- `'open'` → `(event: Event) => void`
+- `'error'` → `(event: Event) => void`
 
 Throws if socket not connected.
 
 ```javascript
 socket.addEventListener('message', (event) => {
-	console.log(event.data);
+	console.log(event.data); // event is typed as MessageEvent
 });
 ```
 
@@ -180,11 +184,11 @@ socket.addEventListener('message', (event) => {
 ```typescript
 removeEventListener(
 	event: 'message' | 'close' | 'open' | 'error',
-	callback: (event: Event) => void
+	callback: (event: MessageEvent | CloseEvent | Event) => void
 ): void
 ```
 
-Removes event listener.
+Removes event listener. Callback types match `addEventListener`.
 
 ```javascript
 const handler = (event) => console.log(event.data);
@@ -242,10 +246,10 @@ Context provider component that makes a socket instance available to child compo
 | Property       | Type           | Required | Description                                        |
 | -------------- | -------------- | -------- | -------------------------------------------------- |
 | `url`          | `string`       | Yes*     | WebSocket server URL (automatically creates socket) |
-| `svelteSocket` | `SvelteSocket` | No       | Optional pre-configured SvelteSocket instance      |
+| `svelteSocket` | `SvelteSocket` | Yes*     | Pre-configured SvelteSocket instance      |
 | `children`     | `Snippet`      | No       | Child components                                   |
 
-*Required only if `svelteSocket` is not provided.
+*At least one of `url` or `svelteSocket` must be provided. If both are provided, `svelteSocket` takes precedence.
 
 **Basic Usage:**
 
