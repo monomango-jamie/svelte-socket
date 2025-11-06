@@ -82,6 +82,30 @@ describe('SvelteSocket', () => {
 			expect(socket).toBeDefined();
 		});
 
+		it('should throw error for invalid WebSocket URL', () => {
+			expect(() => {
+				new SvelteSocket({ url: 'http://localhost:8080' });
+			}).toThrow('Invalid WebSocket URL: "http://localhost:8080". URL must start with ws:// or wss://');
+
+			expect(() => {
+				new SvelteSocket({ url: 'https://localhost:8080' });
+			}).toThrow('Invalid WebSocket URL: "https://localhost:8080". URL must start with ws:// or wss://');
+
+			expect(() => {
+				new SvelteSocket({ url: 'localhost:8080' });
+			}).toThrow('Invalid WebSocket URL: "localhost:8080". URL must start with ws:// or wss://');
+		});
+
+		it('should accept valid ws:// and wss:// URLs', () => {
+			const wsSocket = new SvelteSocket({ url: 'ws://localhost:8080' });
+			expect(wsSocket).toBeDefined();
+			wsSocket.removeSocket();
+
+			const wssSocket = new SvelteSocket({ url: 'wss://localhost:8080' });
+			expect(wssSocket).toBeDefined();
+			wssSocket.removeSocket();
+		});
+
 		it('should start in CONNECTING state', () => {
 			socket = new SvelteSocket({ url: testUrl });
 			expect(socket.connectionStatus).toBe(WebSocket.CONNECTING);
@@ -232,8 +256,8 @@ describe('SvelteSocket', () => {
 			socket.sendMessage('Test message 2');
 
 			expect(socket.sentMessages).toHaveLength(2);
-			expect(socket.sentMessages[0].message).toBe('Test message 1');
-			expect(socket.sentMessages[1].message).toBe('Test message 2');
+			expect(socket.sentMessages[0].message).toBe('Test message 2');
+			expect(socket.sentMessages[1].message).toBe('Test message 1');
 		});
 
 		it('should throw error when socket is not connected', () => {

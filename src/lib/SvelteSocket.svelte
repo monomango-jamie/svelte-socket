@@ -117,24 +117,29 @@
 		 * @param {boolean} [options.debug=false] - Enable debug console logging
 		 * @param {ReconnectOptions} [options.reconnectOptions] - Auto-reconnection configuration
 		 */
-		constructor({
-			url,
-			onMessage,
-			onOpen,
-			onClose,
-			onError,
-			debug = false,
-			reconnectOptions = undefined
-		}: SocketConstructorArgs) {
-			this.url = url;
-			this.onMessageEvent = onMessage;
-			this.onOpenProp = onOpen;
-			this.onCloseProp = onClose;
-			this.onErrorProp = onError;
-			this.debug = debug;
-			this.reconnectOptions = reconnectOptions;
-			this.createSocket(url);
+	constructor({
+		url,
+		onMessage,
+		onOpen,
+		onClose,
+		onError,
+		debug = false,
+		reconnectOptions = undefined
+	}: SocketConstructorArgs) {
+		// Validate WebSocket URL
+		if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+			throw new Error(`Invalid WebSocket URL: "${url}". URL must start with ws:// or wss://`);
 		}
+
+		this.url = url;
+		this.onMessageEvent = onMessage;
+		this.onOpenProp = onOpen;
+		this.onCloseProp = onClose;
+		this.onErrorProp = onError;
+		this.debug = debug;
+		this.reconnectOptions = reconnectOptions;
+		this.createSocket(url);
+	}
 
 	/**
 	 * Adds an event listener to the WebSocket connection.
