@@ -14,6 +14,16 @@
 	}
 
 	/**
+	 * Map of WebSocket event types to their corresponding event types
+	 */
+	type WebSocketEventMap = {
+		message: MessageEvent;
+		close: CloseEvent;
+		open: Event;
+		error: Event;
+	};
+
+	/**
 	 * Configuration options for creating a new SvelteSocket instance.
 	 */
 	export interface SocketConstructorArgs {
@@ -126,37 +136,37 @@
 			this.createSocket(url);
 		}
 
-		/**
-		 * Adds an event listener to the WebSocket connection.
-		 *
-		 * @param {'message' | 'close' | 'open' | 'error'} event - The event type to listen for
-		 * @param {(event: Event) => void} callback - The callback function to execute when the event occurs
-		 * @throws {Error} If the socket is not connected
-		 */
-		public addEventListener(
-			event: 'message' | 'close' | 'open' | 'error',
-			callback: (event: Event) => void
-		) {
-			if (!this.socket) {
-				throw new Error('Socket not connected');
-			}
-			this.socket.addEventListener(event, callback);
+	/**
+	 * Adds an event listener to the WebSocket connection.
+	 *
+	 * @param event - The event type to listen for
+	 * @param callback - The callback function to execute when the event occurs
+	 * @throws {Error} If the socket is not connected
+	 */
+	public addEventListener<K extends keyof WebSocketEventMap>(
+		event: K,
+		callback: (event: WebSocketEventMap[K]) => void
+	): void {
+		if (!this.socket) {
+			throw new Error('Socket not connected');
 		}
+		this.socket.addEventListener(event, callback as EventListener);
+	}
 
-		/**
-		 * Removes an event listener from the WebSocket connection.
-		 *
-		 * @param {'message' | 'close' | 'open' | 'error'} event - The event type
-		 * @param {(event: Event) => void} callback - The callback function to remove
-		 */
-		public removeEventListener(
-			event: 'message' | 'close' | 'open' | 'error',
-			callback: (event: Event) => void
-		) {
-			if (this.socket) {
-				this.socket.removeEventListener(event, callback);
-			}
+	/**
+	 * Removes an event listener from the WebSocket connection.
+	 *
+	 * @param event - The event type
+	 * @param callback - The callback function to remove
+	 */
+	public removeEventListener<K extends keyof WebSocketEventMap>(
+		event: K,
+		callback: (event: WebSocketEventMap[K]) => void
+	): void {
+		if (this.socket) {
+			this.socket.removeEventListener(event, callback as EventListener);
 		}
+	}
 
 		/**
 		 * Sends a message through the WebSocket connection and stores it in the message history.
