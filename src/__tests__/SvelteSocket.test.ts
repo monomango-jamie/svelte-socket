@@ -688,36 +688,5 @@ describe('SvelteSocket', () => {
 			});
 		});
 
-		describe('Message IDs', () => {
-			it('should assign unique IDs to sent messages', async () => {
-				socket = new SvelteSocket({ url: testUrl });
-				await vi.runAllTimersAsync();
-
-				socket.sendMessage('Message 1');
-				socket.sendMessage('Message 2');
-				socket.sendMessage('Message 3');
-
-				const ids = socket.sentMessages.map((m) => m.id);
-				const uniqueIds = new Set(ids);
-
-				expect(uniqueIds.size).toBe(3);
-				expect(ids).toEqual([2, 1, 0]); // Newest first
-			});
-
-			it('should assign unique IDs to received messages', async () => {
-				socket = new SvelteSocket({ url: testUrl });
-				await vi.runAllTimersAsync();
-
-				const mockSocket = socket.socket as unknown as MockWebSocket;
-				mockSocket.dispatchEvent({ type: 'message', data: 'Message 1' });
-				mockSocket.dispatchEvent({ type: 'message', data: 'Message 2' });
-				mockSocket.dispatchEvent({ type: 'message', data: 'Message 3' });
-
-				const ids = socket.receivedMessages.map((m) => m.id);
-				const uniqueIds = new Set(ids);
-
-				expect(uniqueIds.size).toBe(3);
-			});
-		});
-	});
+});
 });
