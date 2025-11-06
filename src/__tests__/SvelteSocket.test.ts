@@ -687,6 +687,5 @@ describe('SvelteSocket', () => {
 				expect(socket.connectionStatus).toBe(WebSocket.OPEN);
 			});
 		});
-
-});
+	});
 });
