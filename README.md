@@ -126,7 +126,7 @@ const socket = new SvelteSocket({
 | Property           | Type                                          | Description                                                                 |
 | ------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
 | `connectionStatus` | `WebSocket['readyState']`                     | Connection state: `0` (CONNECTING), `1` (OPEN), `2` (CLOSING), `3` (CLOSED) |
-| `sentMessages`     | `Array<{message: string, timestamp: number}>` | Sent message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
+| `sentMessages`     | `Array<{message: string \| ArrayBuffer \| Blob \| ArrayBufferView, timestamp: number}>` | Sent message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
 | `receivedMessages` | `Array<{message: MessageEvent}>`              | Received message history (newest first, via `unshift`). Auto-trimmed to `maxMessageHistory` |
 | `maxMessageHistory` | `number`                                     | Maximum number of messages to keep in history (default: `50`, readonly)     |
 
@@ -202,16 +202,21 @@ socket.removeEventListener('message', handler);
 ##### `sendMessage(message)`
 
 ```typescript
-sendMessage(message: string): void
+sendMessage(message: string | ArrayBuffer | Blob | ArrayBufferView): void
 ```
 
-Sends message via WebSocket. Stores in `sentMessages` array.
+Sends a text or binary message through the WebSocket. Supports strings, ArrayBuffer, Blob, TypedArray, and DataView. Stores in `sentMessages` array. Throws if not connected or not in OPEN state.
 
-Throws if socket not connected or not in OPEN state.
+**Example:**
 
 ```javascript
-socket.sendMessage('hello');
+// Send text
+socket.sendMessage('Hello, server!');
 socket.sendMessage(JSON.stringify({ type: 'ping' }));
+
+// Send binary data
+const buffer = new Uint8Array([1, 2, 3, 4]);
+socket.sendMessage(buffer);
 ```
 
 ##### `clearSentMessages()`

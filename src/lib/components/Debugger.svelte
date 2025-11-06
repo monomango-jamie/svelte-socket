@@ -45,6 +45,23 @@
 			fractionalSecondDigits: 3
 		});
 	}
+
+	function formatMessage(message: string | ArrayBuffer | Blob | ArrayBufferView): string {
+		if (typeof message === 'string') {
+			return message;
+		}
+		if (message instanceof Blob) {
+			return `[Blob: ${message.size} bytes, type: ${message.type || 'unknown'}]`;
+		}
+		if (message instanceof ArrayBuffer) {
+			return `[ArrayBuffer: ${message.byteLength} bytes]`;
+		}
+		// ArrayBufferView (TypedArray or DataView)
+		if (ArrayBuffer.isView(message)) {
+			return `[${message.constructor.name}: ${message.byteLength} bytes]`;
+		}
+		return '[Binary Data]';
+	}
 </script>
 
 <div
@@ -224,11 +241,16 @@
 							<span class="font-mono text-xs text-emerald-400">
 								{formatTimestamp(timestamp)}
 							</span>
+							{#if typeof message !== 'string'}
+								<span class="rounded bg-purple-500/20 px-2 py-0.5 text-xs text-purple-300">
+									BINARY
+								</span>
+							{/if}
 						</div>
 						<div
 							class="rounded border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm break-all text-slate-300"
 						>
-							{message}
+							{formatMessage(message)}
 						</div>
 					</div>
 				{/each}

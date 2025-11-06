@@ -98,7 +98,7 @@
 		private onCloseProp?: (closeEvent: CloseEvent) => void;
 		private onErrorProp?: (errorEvent: Event) => void;
 	public connectionStatus = $state<WebSocket['readyState']>(WebSocket.CLOSED);
-	public sentMessages = $state<Array<{ message: string; timestamp: number }>>([]);
+	public sentMessages = $state<Array<{ message: string | ArrayBuffer | Blob | ArrayBufferView; timestamp: number }>>([]);
 	public receivedMessages = $state<Array<{ message: MessageEvent }>>([]);
 	private debug: boolean;
 	private reconnectOptions?: ReconnectOptions;
@@ -180,13 +180,14 @@
 		}
 	}
 
-		/**
-		 * Sends a message through the WebSocket connection and stores it in the message history.
-		 *
-		 * @param {string} message - The message to send
-		 * @throws {Error} If the socket is not connected or not in OPEN state
-		 */
-	public sendMessage(message: string): void {
+	/**
+	 * Sends a message through the WebSocket connection and stores it in the message history.
+	 * Supports text strings and binary data (ArrayBuffer, Blob, ArrayBufferView).
+	 *
+	 * @param {string | ArrayBuffer | Blob | ArrayBufferView} message - The message to send
+	 * @throws {Error} If the socket is not connected or not in OPEN state
+	 */
+	public sendMessage(message: string | ArrayBuffer | Blob | ArrayBufferView): void {
 		if (!this.socket) {
 			throw new Error('Socket not connected');
 		}

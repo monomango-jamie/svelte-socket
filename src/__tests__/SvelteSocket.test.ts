@@ -248,21 +248,63 @@ describe('SvelteSocket', () => {
 			expect(sendSpy).toHaveBeenCalledWith('Hello, World!');
 		});
 
-		it('should store sent message in history', async () => {
-			socket = new SvelteSocket({ url: testUrl });
-			await vi.runAllTimersAsync();
+	it('should store sent message in history', async () => {
+		socket = new SvelteSocket({ url: testUrl });
+		await vi.runAllTimersAsync();
 
-			socket.sendMessage('Test message 1');
-			socket.sendMessage('Test message 2');
+		socket.sendMessage('Test message 1');
+		socket.sendMessage('Test message 2');
 
-			expect(socket.sentMessages).toHaveLength(2);
-			expect(socket.sentMessages[0].message).toBe('Test message 2');
-			expect(socket.sentMessages[1].message).toBe('Test message 1');
-		});
+		expect(socket.sentMessages).toHaveLength(2);
+		expect(socket.sentMessages[0].message).toBe('Test message 2');
+		expect(socket.sentMessages[1].message).toBe('Test message 1');
+	});
 
-		it('should throw error when socket is not connected', () => {
-			socket = new SvelteSocket({ url: testUrl });
-			socket.removeSocket();
+	it('should send ArrayBuffer binary data', async () => {
+		socket = new SvelteSocket({ url: testUrl });
+		await vi.runAllTimersAsync();
+
+		const buffer = new ArrayBuffer(8);
+		const mockSocket = socket['socket'] as unknown as MockWebSocket;
+		mockSocket.send = vi.fn(); // Reset the spy
+
+		socket.sendMessage(buffer);
+
+		expect(mockSocket.send).toHaveBeenCalledWith(buffer);
+		expect(socket.sentMessages[0].message).toBe(buffer);
+	});
+
+	it('should send Blob binary data', async () => {
+		socket = new SvelteSocket({ url: testUrl });
+		await vi.runAllTimersAsync();
+
+		const blob = new Blob(['test'], { type: 'text/plain' });
+		const mockSocket = socket['socket'] as unknown as MockWebSocket;
+		mockSocket.send = vi.fn(); // Reset the spy
+
+		socket.sendMessage(blob);
+
+		expect(mockSocket.send).toHaveBeenCalledWith(blob);
+		expect(socket.sentMessages[0].message).toBe(blob);
+	});
+
+	it('should send TypedArray binary data', async () => {
+		socket = new SvelteSocket({ url: testUrl });
+		await vi.runAllTimersAsync();
+
+		const uint8 = new Uint8Array([1, 2, 3, 4]);
+		const mockSocket = socket['socket'] as unknown as MockWebSocket;
+		mockSocket.send = vi.fn(); // Reset the spy
+
+		socket.sendMessage(uint8);
+
+		expect(mockSocket.send).toHaveBeenCalledWith(uint8);
+		expect(socket.sentMessages[0].message).toBe(uint8);
+	});
+
+	it('should throw error when socket is not connected', () => {
+		socket = new SvelteSocket({ url: testUrl });
+		socket.removeSocket();
 
 			expect(() => {
 				socket.sendMessage('Test');
