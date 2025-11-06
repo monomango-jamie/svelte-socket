@@ -56,7 +56,7 @@
 	 * A reactive WebSocket wrapper using Svelte 5 runes.
 	 *
 	 * @property {WebSocket['readyState']} connectionStatus - Current connection state (CONNECTING, OPEN, CLOSING, CLOSED)
-	 * @property {Array<{message: string, timestamp: number}>} sentMessages - Reactive array of sent messages
+	 * @property {Array<{message: string | ArrayBuffer | Blob | ArrayBufferView, timestamp: number}>} sentMessages - Reactive array of sent messages (text and binary data supported)
 	 * @property {Array<{message: MessageEvent}>} receivedMessages - Reactive array of received messages (stores MessageEvent objects)
 	 *
 	 * @example
@@ -70,6 +70,10 @@
 	 *
 	 * socket.sendMessage('Hello, Server!');
 	 *
+	 * // Send binary data
+	 * const buffer = new Uint8Array([1, 2, 3, 4]);
+	 * socket.sendMessage(buffer);
+	 *
 	 * // Access received messages
 	 * socket.receivedMessages.forEach(({ message }) => {
 	 *   console.log(message.data, message.origin);
@@ -77,11 +81,12 @@
 	 * ```
 	 *
 	 * @example
-	 * With auto-reconnect:
+	 * With auto-reconnect and message history limit:
 	 * ```typescript
 	 * const socket = new SvelteSocket({
 	 *   url: 'ws://localhost:8080',
 	 *   debug: true,
+	 *   maxMessageHistory: 100,
 	 *   reconnectOptions: {
 	 *     enabled: true,
 	 *     delay: 1000,
